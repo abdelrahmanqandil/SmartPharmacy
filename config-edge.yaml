@@ -1,0 +1,13 @@
+node:
+  id: edge-branch-1
+  role: edge
+  branch: branch-1
+
+server:
+  port: 9091
+
+database:
+  path: "./edge.db"
+
+auth:
+  token: "dev-pharmacist-token"

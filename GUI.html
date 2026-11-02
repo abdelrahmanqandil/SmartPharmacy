@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Smart Pharmacy Front Door</title>
+<style>
+  :root {
+    --bg: #E8ECF0;
+    --bg2: #DDE3EA;
+    --card: #EEF1F5;
+    --text: #182231;
+    --muted: #6B7A92;
+    --line: rgba(180,190,210,.45);
+    --shadow-out: 6px 6px 14px rgba(150,165,190,.26), -6px -6px 14px rgba(255,255,255,.9);
+    --shadow-in: inset 4px 4px 10px rgba(150,165,190,.20), inset -4px -4px 10px rgba(255,255,255,.92);
+    --primary: #008080;
+    --primary2: #20B2AA;
+    --success: #16A34A;
+    --warn: #D97706;
+    --danger: #DC2626;
+    --success-soft: #DCFCE7;
+    --warn-soft: #FEF3C7;
+    --danger-soft: #FEE2E2;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body {
+    height:100%;
+    background:var(--bg);
+    color:var(--text);
+    /* Updated to strictly match Apple's modern web font stack */
+    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  body { overflow:hidden; }
+  
+  /* Login Overlay Styles */
+  #login-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg); z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .login-box {
+    background: var(--card); border: 1px solid var(--line); border-radius: 22px;
+    box-shadow: var(--shadow-out); padding: 2.5rem 2rem; width: 100%; max-width: 360px;
+    text-align: center;
+  }
+  .login-box h2 {
+    font-size: 1.6rem; font-weight: 900; letter-spacing: -.03em; color: var(--text);
+    margin-bottom: 2rem;
+  }
+  .login-btn { width: 100%; margin-bottom: 1rem; padding: .85rem; font-size: .95rem; }
+  .hidden { display: none !important; }
+
+  .app { display:flex; height:100vh; }
+  .sidebar {
+    width:240px; flex:0 0 240px; background:var(--bg); border-right:1px solid var(--line);
+    display:flex; flex-direction:column;
+  }
+  .brand {
+    display:flex; align-items:center; gap:.8rem; padding:1.1rem 1.35rem; border-bottom:1px solid var(--line);
+  }
+  .brand-title { font-weight:900; font-size:1.3rem; letter-spacing:-.02em; }
+  .brand-title span { color:var(--primary); }
+  .nav-group { padding:1rem .9rem 0; }
+  .nav-label {
+    font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
+    padding:0 .55rem .45rem;
+  }
+  .nav-item {
+    display:flex; align-items:center; gap:.72rem; padding:.8rem .9rem; margin-bottom:.25rem; border-radius:16px;
+    cursor:pointer; color:var(--muted); border:1px solid transparent; user-select:none;
+  }
+  .nav-item:hover { background:rgba(255,255,255,.55); color:var(--text); }
+  .nav-item.active {
+    background:rgba(255,255,255,.85); color:var(--primary); font-weight:800; box-shadow:var(--shadow-out); border-color:var(--line);
+  }
+  .nav-item.locked { opacity:.42; cursor:not-allowed; }
+  .nav-icon { width:18px; height:18px; flex:0 0 18px; display:inline-flex; align-items:center; justify-content:center; color:currentColor; }
+  .nav-icon img { width:18px; height:18px; display:block; object-fit:contain; }
+  .sidebar-footer { margin-top:auto; padding:1rem .9rem 1.2rem; }
+  .main { flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden; }
+  .topbar {
+    min-height:72px; flex:0 0 auto; display:flex; align-items:center; gap:1rem; padding:0 1.35rem; border-bottom:1px solid var(--line);
+  }
+  .search {
+    flex:1; max-width:420px; display:flex; align-items:center; gap:.65rem; border-radius:16px; border:1px solid var(--line);
+    background:rgba(255,255,255,.68); box-shadow:var(--shadow-in); padding:.68rem .95rem; color:var(--muted); font-size:.92rem;
+  }
+  .search svg { width:16px; height:16px; flex:0 0 16px; }
+  .topbar-right { margin-left:auto; display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; justify-content:flex-end; }
+  .badge {
+    display:inline-flex; align-items:center; gap:.4rem; padding:.38rem .75rem; border-radius:999px; border:1px solid var(--line);
+    background:var(--card); box-shadow:var(--shadow-out); font-size:.78rem; font-weight:800; white-space:nowrap;
+  }
+  .badge.good { color:var(--success); background:var(--success-soft); border-color:#BBF7D0; }
+  .badge.warn { color:var(--warn); background:var(--warn-soft); border-color:#FDE68A; }
+  .badge.bad { color:var(--danger); background:var(--danger-soft); border-color:#FECACA; }
+  .badge.neutral { color:var(--muted); }
+  .dot { width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block; }
+  .user-pill {
+    display:flex; align-items:center; gap:.55rem; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.78);
+    box-shadow:var(--shadow-out); padding:.36rem .8rem .36rem .42rem;
+  }
+  .avatar {
+    width:30px; height:30px; border-radius:50%; background:var(--primary);
+    color:#fff; display:flex; align-items:center; justify-content:center; font-size:.8rem; font-weight:900;
+  }
+  .user-meta { line-height:1.05; }
+  .user-name { font-size:.84rem; font-weight:800; }
+  .user-role { font-size:.71rem; color:var(--muted); }
+  .content { flex:1; overflow-y:auto; padding:1.35rem; }
+  .page-title {
+    font-size:1.75rem; font-weight:900; letter-spacing:-.03em; line-height:1.1;
+  }
+  .page-sub { color:var(--muted); margin-top:.35rem; font-size:.9rem; }
+  .page-header { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:1rem; flex-wrap:wrap; }
+  .page-actions { display:flex; gap:.6rem; flex-wrap:wrap; }
+  .card {
+    background:var(--card); border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow-out); padding:1.15rem 1.25rem;
+  }
+  .card-title { font-size:.95rem; font-weight:800; margin-bottom:.9rem; }
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1rem; }
+  @media (max-width: 1100px) { .stats-grid { grid-template-columns:repeat(2,1fr); } }
+  @media (max-width: 680px) { .stats-grid { grid-template-columns:1fr; } }
+  .stat-card {
+    background:var(--card); border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow-out); padding:1.1rem 1.25rem;
+  }
+  .stat-top { display:flex; justify-content:space-between; align-items:flex-start; gap:.5rem; }
+  .stat-icon-wrap {
+    width:42px; height:42px; border-radius:50%; background:var(--bg); box-shadow:var(--shadow-out);
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+  }
+  .stat-icon-wrap img { width:20px; height:20px; object-fit:contain; }
+  .stat-delta {
+    display:inline-flex; align-items:center; gap:.25rem; padding:.24rem .55rem; border-radius:999px; font-size:.76rem; font-weight:800;
+  }
+  .stat-delta.up { background:var(--success-soft); color:var(--success); }
+  .stat-delta.down { background:var(--danger-soft); color:var(--danger); }
+  .stat-delta.neutral { background:var(--bg2); color:var(--muted); }
+  .stat-label { font-size:.82rem; font-weight:700; color:var(--muted); margin-top:.45rem; }
+  .stat-value { font-size:1.5rem; font-weight:900; letter-spacing:-.03em; margin-top:.15rem; }
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  @media (max-width: 900px) { .two-col { grid-template-columns:1fr; } }
+  .form-grid { display:grid; grid-template-columns:repeat(12,1fr); gap:.75rem; align-items:end; }
+  .f1 { grid-column:span 3; }
+  .f2 { grid-column:span 6; }
+  .f12 { grid-column:span 12; }
+  @media (max-width: 760px) { .f1,.f2,.f12 { grid-column:span 12; } }
+  label {
+    display:block; font-size:.72rem; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;
+    margin-bottom:.32rem;
+  }
+  input, select {
+    width:100%; padding:.72rem .9rem; border-radius:14px; border:1px solid rgba(160,175,200,.30);
+    background:rgba(255,255,255,.72); color:var(--text); box-shadow:var(--shadow-in); outline:none; font-size:.9rem;
+  }
+  input:focus, select:focus { border-color:rgba(0,128,128,.55); box-shadow:0 0 0 3px rgba(0,128,128,.10), var(--shadow-in); }
+  
+  /* Buttons - Gradients Removed */
+  .btn {
+    display:inline-flex; align-items:center; justify-content:center; gap:.45rem; border:none; border-radius:14px; padding:.72rem 1.05rem;
+    cursor:pointer; font-size:.88rem; font-weight:800; white-space:nowrap;
+  }
+  .btn.primary { background:var(--primary); color:#fff; box-shadow:0 8px 20px rgba(0,128,128,.26); }
+  .btn.success { background:var(--success); color:#fff; box-shadow:0 8px 20px rgba(22,163,74,.22); }
+  .btn.ghost { background:rgba(255,255,255,.80); color:var(--text); box-shadow:var(--shadow-out); border:1px solid var(--line); }
+  
+  .banner {
+    display:none; border-radius:18px; border:1px solid var(--line); box-shadow:var(--shadow-out); padding:.85rem 1rem; margin-bottom:1rem;
+    font-size:.9rem; font-weight:800;
+  }
+  .banner.good { display:block; background:var(--success-soft); color:#14532d; border-color:#BBF7D0; }
+  .banner.warn { display:block; background:var(--warn-soft); color:#92400e; border-color:#FDE68A; }
+  .banner.bad { display:block; background:var(--danger-soft); color:#7f1d1d; border-color:#FECACA; }
+  .inner-tabs { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .inner-tab-btn {
+    padding:.5rem 1rem; border-radius:999px; border:1px solid var(--line); background:var(--bg); box-shadow:var(--shadow-out);
+    color:var(--muted); font-size:.84rem; font-weight:700; cursor:pointer;
+  }
+  .inner-tab-btn.active { background:rgba(255,255,255,.88); color:var(--primary); border-color:rgba(0,128,128,.22); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+  .status-chip {
+    display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .7rem; border-radius:999px; font-size:.78rem; font-weight:800;
+  }
+  .status-chip.up { background:var(--success-soft); color:var(--success); }
+  .status-chip.down { background:var(--danger-soft); color:var(--danger); }
+  .status-chip.unknown { background:var(--bg2); color:var(--muted); }
+  .status-line { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.5rem; }
+  .badge-mini {
+    display:inline-flex; align-items:center; gap:.35rem; padding:.28rem .65rem; border-radius:999px; font-size:.76rem; font-weight:800;
+    border:1px solid var(--line); background:var(--card);
+  }
+  .badge-mini.good { background:var(--success-soft); color:var(--success); border-color:#A7F3D0; }
+  .badge-mini.warn { background:var(--warn-soft); color:var(--warn); border-color:#FDE68A; }
+  .badge-mini.bad { background:var(--danger-soft); color:var(--danger); border-color:#FECACA; }
+  .badge-mini.neutral { background:var(--bg2); color:var(--muted); }
+  .table-wrap { overflow-x:auto; border-radius:16px; border:1px solid var(--line); }
+  table { width:100%; border-collapse:collapse; background:rgba(255,255,255,.70); font-size:.88rem; }
+  th, td { padding:.75rem 1rem; text-align:left; border-bottom:1px solid rgba(180,190,210,.18); vertical-align:top; }
+  th { background:rgba(220,228,240,.50); font-size:.72rem; font-weight:900; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  tbody tr:hover td { background:rgba(0,128,128,.03); }
+  tbody tr:last-child td { border-bottom:0; }
+  .empty { padding:1rem; color:var(--muted); font-style:italic; }
+  .locked {
+    position:relative;
+  }
+  .locked::after {
+    content:"Database view is currently unavailable";
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center;
+    padding:1rem; background:rgba(238,241,245,.75); backdrop-filter:blur(3px); border-radius:22px;
+    color:#7c2d12; font-weight:900; border:1px dashed rgba(124,45,18,.28);
+  }
+  .settings-grid {
+    display:grid; grid-template-columns:2fr 2fr 1fr auto; gap:.75rem; align-items:end;
+  }
+  @media (max-width: 900px) { .settings-grid { grid-template-columns:1fr; } }
+  .footer-note { font-size:.79rem; color:var(--muted); margin-top:.65rem; line-height:1.5; }
+  .icon-btn {
+    width:46px; height:46px; display:inline-flex; align-items:center; justify-content:center; padding:0;
+    border:none; border-radius:14px; background:rgba(255,255,255,.80); box-shadow:var(--shadow-out); border:1px solid var(--line); cursor:pointer;
+  }
+  .icon-btn img { width:20px; height:20px; display:block; object-fit:contain; }
+  .icon-small { width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; }
+  .icon-small img { width:16px; height:16px; display:block; object-fit:contain; }
+  @media (max-width: 720px) { .sidebar { display:none; } .content { padding:1rem; } }
+</style>
+</head>
+<body>
+
+<div id="login-overlay">
+  <div class="login-box">
+    <h2>SmartRx Sign In</h2>
+    <button class="btn primary login-btn" onclick="signIn('pharmacist')">Sign in as Pharmacist</button>
+    <button class="btn ghost login-btn" onclick="signIn('admin')">Sign in as Administrator</button>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-title">Smart<span>Rx</span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Main Menu</div>
+      <div class="nav-item active" id="nav-dispense" onclick="openTab('dispense')">
+        <span class="nav-icon"><img alt="" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIFVwbG9hZGVkIHRvOiBTVkcgUmVwbywgd3d3LnN2Z3JlcG8uY29tLCBHZW5lcmF0b3I6IFNWRyBSZXBvIE1peGVyIFRvb2xzIC0tPgo8IURPQ1RZUEUgc3ZnIFBVQkxJQyAiLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4iICJodHRwOi8vd3d3LnczLm9yZy9HcmFwaGljcy9TVkcvMS4xL0RURC9zdmcxMS5kdGQiPgo8c3ZnIGZpbGw9ImN1cnJlbnRDb2xvciIgdmVyc2lvbj0iMS4xIiBpZD0iQ2FwYV8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiAKCSAgIHZpZXdCb3g9IjAgMCAzOTkuOTQ3IDM5OS45NDciCgkgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+CjxnPgoJPHBhdGggZD0iTTM2NS4yMjYsMzQuNjkzQzM0Mi44NTQsMTIuMzIxLDMxMy4xMDgsMCwyODEuNDY4LDBzLTYxLjM4NiwxMi4zMjEtODMuNzU5LDM0LjY5M0wzNC42NjUsMTk3LjczNwoJCWMtNDYuMTg0LDQ2LjE4Ni00Ni4xODQsMTIxLjMzMiwwLjAwMSwxNjcuNTE4YzIyLjM3MywyMi4zNzMsNTIuMTE5LDM0LjY5Miw4My43NTgsMzQuNjkyYzMxLjYzOSwwLDYxLjM4Ni0xMi4zMTksODMuNzU5LTM0LjY5MgoJCWwxNjMuMDQ0LTE2My4wNDRjMjIuMzczLTIyLjM3NCwzNC42OTQtNTIuMTIsMzQuNjk0LTgzLjc1OUMzOTkuOTIsODYuODExLDM4Ny41OTksNTcuMDY2LDM2NS4yMjYsMzQuNjkzIE0xOTEuMTI1LDM1NC4xOTcKCQljLTE5LjQxOSwxOS40MjEtNDUuMjM5LDMwLjExNS03Mi43MDIsMzAuMTE1Yy0yNy40NjMsMC01My4yODQtMTAuNjk0LTcyLjcwMy0zMC4xMTVjLTQwLjA4OC00MC4wODgtNDAuMDg4LTEwNS4zMTUsMC0xNDUuNDA1CgkJbDgxLjUyMi04MS41MjFjMCwwLDg0Ljk1OC04NC4yNjIsODYuMjE1LTg1LjIzNGMxLjI3MS0wLjk1MywyLjU5Mi0xLjg0MSwzLjg3OS0yLjc1OWM1LjIyNi0zLjU3MiwxMC42NTktNi43NDMsMTYuMjY5LTkuMzQKCQljMTEuMjA0LTUuMjMzLDIzLjAxMS04LjIxNSwzNC4yOS05LjA1M2M1LjY0Ny0wLjM2MiwxMS4xNS0wLjI1NiwxNi40MDgsMC4yOThjMS4zMTEsMC4xNywyLjYwOCwwLjMzOSwzLjg5NiwwLjUwNgoJCWMxLjI4MSwwLjE5OCwyLjU0MSwwLjQ1NSwzLjc5MSwwLjY3OGMxLjI1MSwwLjIwOCwyLjQ3NCwwLjUwMiwzLjY4MiwwLjc5OGMxLjIwNCwwLjMwNCwyLjQxMSwwLjU0LDMuNTY5LDAuOTE2CgkJYzEuMTYxLDAuMzUzLDIuMzExLDAuNzAyLDMuNDQ3LDEuMDQ3YzEuMTM1LDAuMzM5LDIuMjI0LDAuNzgzLDMuMzE1LDEuMTYyYzIuMTksMC43NDQsNC4yNTEsMS42NzEsNi4yNjQsMi41MzEKCQljMS4wMTEsMC40MjUsMS45NjUsMC45NDMsMi45MjUsMS40YzAuOTQ5LDAuNDgxLDEuOTA2LDAuOTA4LDIuODEsMS40MTRjMC45MDIsMC41MDEsMS43OTEsMC45OTQsMi42NjcsMS40NzkKCQljMC40MzYsMC4yNDUsMC44NjcsMC40ODgsMS4yOTYsMC43MjljMC40MTcsMC4yNjEsMC44MzMsMC41MjEsMS4yNDIsMC43NzhjNi41OTYsNC4wNTksMTEuOTA3LDguMTE4LDE2LjEyNSwxMS41OTcKCQljNS40MDYsNC40NTksOC4wOTYsNi45MzQsMTAsOS4xMjVjMC45NTMsMS4wOTcsMi41OTYsMy4xMDEsMi4wODMsMy42MjVjLTAuNDMsMC40NC0yLjEzMS0wLjgwMi00LjQyNy0yLjU2MwoJCWMtMi4yNzMtMS43NjgtNS41MjMtNC4yNDUtOS45ODItNy4xMzljLTQuNTE1LTIuODEzLTEwLjExOC01Ljk4Ni0xNi44MDctOC44NDljLTYuNjY2LTIuODk2LTE0LjQ3Ni01LjM1Ny0yMy4xMDEtNi43NzkKCQljLTQuMzItMC42NDItOC44MjQtMS4xNjEtMTMuNDktMS4xNTFjLTQuNjU5LTAuMDA4LTkuNDUzLDAuMjg0LTE0LjMwNywxLjA0NGMtOS43LDEuNTM2LTE5LjYwMiw0LjgxNC0yOS4wMzYsOS44MzQKCQljLTQuNjkzLDIuNTU1LTkuMzA1LDUuNDYzLTEzLjczMiw4Ljc2OGMtMS4wODksMC44NS04MS44MDYsNzkuMDU5LTg2LjE1NCw4My41MDNjLTEuNTQ3LDEuNTgxLTEuNDYzLDMuNDE1LDAuNDEyLDUuMjkKCQljMzAuMzgzLDMwLjM4MywxMTUuMTcxLDExNS4wOCwxMjkuNzE5LDEyOS42MTNjMS4zOSwxLjM4OCwxLjcwNiwyLjU1OSwwLjI3MSw0LjAwMgoJCUMyNDUuMzMyLDMwMC4xMzYsMTkxLjEyNSwzNTQuMTk3LDE5MS4xMjUsMzU0LjE5N3oiLz4KPC9nPgo8L3N2Zz4=" /></span> Dispense
+      </div>
+      <div class="nav-item" id="nav-inventory" onclick="openTab('inventory')">
+        <span class="nav-icon"><img alt="" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIFVwbG9hZGVkIHRvOiBTVkcgUmVwbywgd3d3LnN2Z3JlcG8uY29tLCBHZW5lcmF0b3I6IFNWRyBSZXBvIE1peGVyIFRvb2xzIC0tPgo8IURPQ1RZUEUgc3ZnIFBVQkxJQyAiLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4iICJodHRwOi8vd3d3LnczLm9yZy9HcmFwaGljcy9TVkcvMS4xL0RURC9zdmcxMS5kdGQiPgo8c3ZnIGZpbGw9ImN1cnJlbnRDb2xvciIgdmVyc2lvbj0iMS4xIiBpZD0iQ2FwYV8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiAKCSAgIHZpZXdCb3g9IjAgMCA0NTAuMDAxIDQ1MC4wMDEiCgkgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+CjxnPgoJPHBhdGggZD0iTTQ0OC41NTQsMTc3LjEwM2MwLDAtNDIuMTUtNTYuMzA3LTQyLjE3NS01Ni4zMzljLTAuMDExLTAuMDE1LTAuOTMtMS42NDctMy43NjItMi41NDhMMjI2Ljk3Myw2OC42MgoJCWMtMS4yOTEtMC4zNjQtMi42NTUtMC4zNjQtMy45NDYsMEw0Ny4zODMsMTE4LjIxNmMwLDAtMi4zOTgsMC42OTItMy44MzksMi42MzdjLTAuNTc3LDAuNzc5LTQyLjA5Nyw1Ni4yNS00Mi4wOTcsNTYuMjUKCQljLTEuMzkyLDEuODYyLTEuODEsNC4yNzgtMS4xMjIsNi40OTljMC42ODksMi4yMjEsMi40LDMuOTc4LDQuNjAxLDQuNzI1bDM3LjE3MSwxMi42MTV2MTAwLjg3NGMwLDIuOTM4LDEuNzcxLDUuNTg1LDQuNDg3LDYuNzA3CgkJbDE3NS42NDUsNzIuNTgxYzAuNTIyLDAuMjE2LDEuMTg0LDAuNTUxLDIuNzcxLDAuNTUxczIuNzcxLTAuNTUxLDIuNzcxLTAuNTUxbDE3NS42NDYtNzIuNTgxYzIuNzE2LTEuMTIyLDQuNDg2LTMuNzcsNC40ODYtNi43MDcKCQlWMjAwLjk0bDM3LjE3MS0xMi42MTVjMi4yMDEtMC43NDcsMy45MTItMi41MDUsNC42MDEtNC43MjVDNDUwLjM2MywxODEuMzgxLDQ0OS45NDUsMTc4Ljk2NSw0NDguNTU0LDE3Ny4xMDN6IE0xOS4wNjIsMTc3Ljc5NAoJCWwzMy4xMzgtNDQuMjhsMTMuNDAzLDMuNjkybDc1LjQzMSwyMC43NzhsNzEuMzM1LDE5LjY1MmwtNDEuODM3LDUxLjU2NUwxOS4wNjIsMTc3Ljc5NHogTTIxNy43NDMsMzYzLjU0MmwtMTYxLjEzLTY2LjU4MXYtOTEuMDk0CgkJbDExNC4wNCwzOC43MDhjMC43NjQsMC4yNjEsMS41NTEsMC4zODQsMi4zMzIsMC4zODRjMi4xNDUsMCw0LjIzMS0wLjk1Myw1LjYzNS0yLjY4NmwzOS4xMjQtNDguMjE5TDIxNy43NDMsMzYzLjU0MgoJCUwyMTcuNzQzLDM2My41NDJ6IE0yMjUsMTY2LjA2Mkw3Ni4zNywxMjUuMTE2TDIyNSw4My4xNDZsMTQ4LjYzLDQxLjk3TDIyNSwxNjYuMDYyeiBNMzkzLjM4OCwyOTYuOTYxbC0xNjEuMTMxLDY2LjU4MVYxOTQuMDU2CgkJbDM5LjEyNCw0OC4yMTljMS40MDQsMS43MzEsMy40OSwyLjY4Niw1LjYzNSwyLjY4NmMwLjc4MSwwLDEuNTY4LTAuMTIzLDIuMzMzLTAuMzg0bDExNC4wMzktMzguNzA4VjI5Ni45NjFMMzkzLjM4OCwyOTYuOTYxegoJCSBNMjc5LjQ2OSwyMjkuMjAzbC00MS44MzctNTEuNTY1bDE2MC4xNjktNDQuMTI0bDMzLjEzOSw0NC4yOEwyNzkuNDY5LDIyOS4yMDN6Ii8+CjwvZz4KPC9zdmc+" /></span> Inventory
+      </div>
+      <div class="nav-item" id="nav-database" onclick="openTab('database')">
+        <span class="nav-icon"><img alt="" src="data:image/svg+xml;base64,PHN2ZyBpZD0iTGF5ZXJfMSIgZGF0YS1uYW1lPSJMYXllciAxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjEuMDYgMTIyLjg4Ij48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGwtcnVsZTpldmVub2RkO308L3N0eWxlPjwvZGVmcz48dGl0bGU+ZGF0YWJhc2Utc2VydmVyPC90aXRsZT48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0xOCwyNy4xNmM4LjI1LDIuNzYsMTkuNzQsNC40NiwzMi41LDQuNDZTNzQuNzUsMjkuOTIsODMsMjcuMTZjNy4yNC0yLjQyLDExLjcyLTUuMzUsMTEuNzItOC4yMVM5MC4yNCwxMy4xNiw4MywxMC43NEM3NC43NSw4LDYzLjI2LDYuMjgsNTAuNTEsNi4yOFMyNi4yNiw4LDE4LDEwLjc0QzIuNjUsMTUuODcsMi4yMiwyMS44OSwxOCwyNy4xNlptMTAzLjA1LDk0YzAtLjE0LDAtLjI2LDAtLjM5VjUxLjM3YzAtLjEzLDAtLjI3LDAtLjM5YTIuMTQsMi4xNCwwLDAsMC0uNTktMS4xMSwyLjEyLDIuMTIsMCwwLDAtMS41LS42M0g3OC45YTIuMTUsMi4xNSwwLDAsMC0yLjEzLDIuMTN2NjkuMzdhMi4wOCwyLjA4LDAsMCwwLC42MywxLjUsMiwyLDAsMCwwLDEuNS42M0gxMTlhMi4xMiwyLjEyLDAsMCwwLDEuNS0uNjMsMi4yOCwyLjI4LDAsMCwwLC41OC0xLjEyWm0tMTYuNDctMTVhNi4zNCw2LjM0LDAsMCwxLTEyLjQxLjcxbDYuNzgtNC4yLDUuNjMsMy40OVpNMTEzLjIsNjEuNHY1LjMzSDg0LjY3VjYxLjRabTAsMTQuNzR2NS4zM0g5OS4xNEw5OSw4MWwtLjE4LjQ0SDg0LjY3Vjc2LjE0Wk02LjM1LDQ4LjczYy41NywyLjY3LDQuOTIsNS4zNiwxMS42Niw3LjYxLDguMjUsMi43NiwxOS43NCw0LjQ2LDMyLjUsNC40Niw0LjQ1LDAsOC43NS0uMjEsMTIuODEtLjZ2Ni4zMmMtNC4wOC4zOC04LjM4LjU4LTEyLjguNTgtMTMuNCwwLTI1LjU5LTEuODMtMzQuNDgtNC44YTM5LjYxLDM5LjYxLDAsMCwxLTkuNjctNC41NlY3Ni41N2MuNTcsMi42Nyw0LjkyLDUuMzYsMTEuNjYsNy42MSw4LjI1LDIuNzUsMTkuNzQsNC40NiwzMi41LDQuNDYsNC40NCwwLDguNzQtLjIxLDEyLjc5LS41OXY2LjI5Yy00LjA5LjM3LTguMzkuNTctMTIuODEuNTctMTMuNCwwLTI1LjU5LTEuODMtMzQuNDgtNC44MWEzOS42MSwzOS42MSwwLDAsMS05LjY3LTQuNTV2MTguODNjLjU3LDIuNjcsNC45Miw1LjM2LDExLjY2LDcuNjEsOC4yNSwyLjc1LDE5Ljc0LDQuNDYsMzIuNSw0LjQ2LDQuNDUsMCw4Ljc1LS4yMSwxMi44LS42djQuODljMCwuNDcsMCwuOTQuMDcsMS40MS00LjExLjM4LTguNDMuNTgtMTIuODcuNTgtMTMuNCwwLTI1LjU5LTEuODMtMzQuNDgtNC44MS00LjY5LTEuNTYtMTYtNi43LTE2LTEyLjg1di0yUTAsNjEsMCwxOUMwLDEzLjA4LDYuMTIsOC4xMSwxNiw0LjgsMjQuOTEsMS44MywzNy4xMSwwLDUwLjUxLDBTNzYuMDksMS44Myw4NSw0LjgxczE0Ljg5LDcuNCwxNS44OCwxMi41OWEzLjA2LDMuMDYsMCwwLDEsLjE4LDEuMDZWMzUuNzlIOTQuNzVWMjguNDhBMzkuNzEsMzkuNzEsMCwwLDEsODUsMzMuMDljLTguODksMy0yMS4wOCw0LjgxLTM0LjQ3LDQuODFTMjQuOTIsMzYuMDcsMTYsMzMuMDlhMzkuNjEsMzkuNjEsMCwwLDEtOS42Ny00LjU1VjQ4LjczWiIvPjwvc3ZnPg==" /></span> Database
+      </div>
+      <div class="nav-item" id="nav-status" onclick="openTab('status')">
+        <span class="nav-icon"><img alt="" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIFVwbG9hZGVkIHRvOiBTVkcgUmVwbywgd3d3LnN2Z3JlcG8uY29tLCBHZW5lcmF0b3I6IFNWRyBSZXBvIE1peGVyIFRvb2xzIC0tPgo8IURPQ1RZUEUgc3ZnIFBVQkxJQyAiLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4iICJodHRwOi8vd3d3LnczLm9yZy9HcmFwaGljcy9TVkcvMS4xL0RURC9zdmcxMS5kdGQiPgo8c3ZnIGZpbGw9ImN1cnJlbnRDb2xvciIgICB2ZXJzaW9uPSIxLjEiIGlkPSJDYXBhXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIAoJIHZpZXdCb3g9IjAgMCA0ODkuODAxIDQ4OS44MDEiIHhtbDpzcGFjZT0icHJlc2VydmUiPgo8Zz4KCTxwYXRoIGQ9Ik00ODQuNTg2LDIzMy4yMTJjLTUuMDg0LTQuNTc4LTEyNS43NzktMTExLjk2Ny0yMzkuNjg5LTExMS45NjdjLTExMy45MDMsMC0yMzQuNTk4LDEwNy4zODktMjM5LjY4OCwxMTEuOTY3CgkJQzEuODkxLDIzNi4xOTQsMCwyNDAuNDUyLDAsMjQ0LjkwOWMwLDQuNDU1LDEuODkxLDguNzExLDUuMjA4LDExLjY5M2M1LjA5LDQuNTgsMTI1Ljc4NSwxMTEuOTUzLDIzOS42ODgsMTExLjk1MwoJCWMxMTMuOTExLDAsMjM0LjYwNi0xMDcuMzczLDIzOS42ODktMTExLjk1M2MzLjMyMi0yLjk4Miw1LjIxNS03LjIzOCw1LjIxNS0xMS42OTMKCQlDNDg5LjgwMSwyNDAuNDUyLDQ4Ny45MDgsMjM2LjE5NCw0ODQuNTg2LDIzMy4yMTJ6IE0yNDQuODk2LDMzMy45MTVjLTQ5LjA2OCwwLTg5LjAwNS0zOS45MjQtODkuMDA1LTg5LjAwNgoJCWMwLTQ5LjA4NiwzOS45MzctODkuMDEsODkuMDA1LTg5LjAxYzQ5LjA3MiwwLDg5LjAxMSwzOS45MjQsODkuMDExLDg5LjAxQzMzMy45MDgsMjkzLjk5MSwyOTMuOTY5LDMzMy45MTUsMjQ0Ljg5NiwzMzMuOTE1egoJCSBNMTQ0LjEzNywxNzkuMDQyYy0xMi40MjIsMTguOTQ5LTE5LjcyMSw0MS41NTMtMTkuNzIxLDY1Ljg2N2MwLDI0LjI3Nyw3LjI2OCw0Ni44NTUsMTkuNjg2LDY1LjgwMwoJCWMtNDUuMDU3LTIxLjIwNy04My45ODItNDkuOTQzLTEwMy44MjItNjUuODE4QzYwLjExOSwyMjkuMDAzLDk5LjA0NSwyMDAuMjM1LDE0NC4xMzcsMTc5LjA0MnogTTM0NS42NjQsMzEwLjc1NwoJCWMxMi40MTYtMTguOTQ3LDE5LjcxOS00MS41NTEsMTkuNzE5LTY1Ljg0OGMwLTI0LjI4MS03LjI4NS00Ni44NzMtMTkuNjg4LTY1LjgyMmM0NS4wNDMsMjEuMjA5LDgzLjk2OSw0OS45NDUsMTAzLjgyMSw2NS44MjIKCQlDNDI5LjY3NywyNjAuOCwzOTAuNzU2LDI4OS41NSwzNDUuNjY0LDMxMC43NTd6Ii8+Cgk8cGF0aCBkPSJNMjQ0Ljg5NiwxOTQuMjU5Yy0yNy45ODIsMC01MC42NDgsMjIuNjY0LTUwLjY0OCw1MC42NWMwLDI3Ljk4MiwyMi42NjYsNTAuNjQ4LDUwLjY0OCw1MC42NDgKCQljMjcuOTg4LDAsNTAuNjU2LTIyLjY2Niw1MC42NTYtNTAuNjQ4QzI5NS41NTMsMjE2LjkyMywyNzIuODg1LDE5NC4yNTksMjQ0Ljg5NiwxOTQuMjU5eiBNMjQ0Ljg5NiwyMjYuMjk4CgkJYy0xMC4yNjIsMC0xOC42MDcsOC4zNDYtMTguNjA3LDE4LjYxMWMwLDQuMzQ4LTMuNTMzLDcuODY1LTcuODY3LDcuODY1Yy00LjM2NSwwLTcuODY5LTMuNTE4LTcuODY5LTcuODY1CgkJYzAtMTguOTM0LDE1LjQtMzQuMzQ4LDM0LjM0NC0zNC4zNDhjNC4zNTIsMCw3Ljg3MSwzLjUyLDcuODcxLDcuODY3QzI1Mi43NjgsMjIyLjc4LDI0OS4yNDgsMjI2LjI5OCwyNDQuODk2LDIyNi4yOTh6Ii8+CjwvZz4KPC9zdmc+" /></span> Status
+      </div>
+    </div>
+    <div class="nav-group" id="nav-settings-group">
+      <div class="nav-label">Settings</div>
+      <div class="nav-item" id="nav-settings" onclick="openTab('settings')">
+        <span class="nav-icon"><img alt="" src="data:image/svg+xml;base64,PHN2ZyBjbGFzcz0ic3ZnLWljb24iIHN0eWxlPSJ3aWR0aDogMWVtOyBoZWlnaHQ6IDFlbTt2ZXJ0aWNhbC1hbGlnbjogbWlkZGxlO2ZpbGw6IGN1cnJlbnRDb2xvcjtvdmVyZmxvdzogaGlkZGVuOyIgdmlld0JveD0iMCAwIDEwMjQgMTAyNCIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik01ODIuMjM5OTk3IDY2My4xNDI5NjhjLTU2LjcxMzk5NyAwLTExMy40MjY5OTQtMjEuNTg5OTk5LTE1Ni42MDk5OTItNjQuNzcyOTk3LTExLjcyODk5OS0xMS43MjY5OTktMTEuNzI4OTk5LTMwLjc5Mjk5OCAwLTQyLjUyMDk5OCAxMS43Mjg5OTktMTEuNzI2OTk5IDMwLjc5MTk5OC0xMS43MjY5OTkgNDIuNTIwOTk4IDAgNjIuOTEwOTk3IDYyLjkwOTk5NyAxNjUuMjEyOTkyIDYyLjkwOTk5NyAyMjguMTIxOTg5IDBMOTE0Ljk0OTk4IDMzNy4xNjk5ODRjNjIuOTEwOTk3LTYyLjkwOTk5NyA2Mi45MTA5OTctMTY1LjIxMTk5MiAwLTIyOC4xMjE5ODktNjIuOTA3OTk3LTYyLjkwOTk5Ny0xNjUuMjEwOTkyLTYyLjkwOTk5Ny0yMjguMTE5OTg5IDBMNTAyLjMxMyAyOTMuNTY1OTg2Yy0xMS43Mjg5OTkgMTEuNzI3OTk5LTMwLjc5Mjk5OCAxMS43Mjc5OTktNDIuNTIxOTk4IDAtMTEuNzI2OTk5LTExLjcyNzk5OS0xMS43MjY5OTktMzAuNzkyOTk4IDAtNDIuNTIwOTk4TDY0NC4zMDg5OTQgNjYuNTI3OTk3Yzg2LjM2NDk5Ni04Ni4zNjQ5OTYgMjI2Ljg1ODk4OS04Ni4zNjQ5OTYgMzEzLjE2Mzk4NSAwIDg2LjMwNDk5NiA4Ni4zNjM5OTYgODYuMzYzOTk2IDIyNi44NTc5ODkgMCAzMTMuMTYzOTg1TDczOC43OTQ5ODkgNTk4LjM2ODk3MWMtNDMuMTgzOTk4IDQzLjE4Mzk5OC05OS44OTg5OTUgNjQuNzcyOTk3LTE1Ni42MTI5OTIgNjQuNzcyOTk3TDU4Mi4yMzk5OTcgNjYzLjE0MTk2OHpNMjIxLjM4NjAxNCAxMDIzLjk5OTk1Yy01Ni43MTQ5OTcgMC0xMTMuNDI5OTk0LTIxLjU5MTk5OS0xNTYuNjExOTkyLTY0Ljc3Mjk5Ny04Ni4zNjM5OTYtODYuMzY0OTk2LTg2LjM2Mzk5Ni0yMjYuODU2OTg5IDAtMzEzLjE2Mzk4NWwyMTguNjc4OTg5LTIxOC42Nzg5ODljODYuMzY0OTk2LTg2LjM2NDk5NiAyMjYuODU4OTg5LTg2LjM2NDk5NiAzMTMuMTYyOTg1IDAgMTEuNzI3OTk5IDExLjcyNzk5OSAxMS43Mjc5OTkgMzAuNzkxOTk4IDAgNDIuNTIwOTk4LTExLjcyNzk5OSAxMS43MjY5OTktMzAuNzkyOTk4IDExLjcyNjk5OS00Mi41MTg5OTggMC02Mi45MTA5OTctNjIuOTA5OTk3LTE2NS4yMTM5OTItNjIuOTA5OTk3LTIyOC4xMjI5ODkgMEwxMDcuMjk0MDIgNjg4LjU4Mzk2NmMtNjIuOTA5OTk3IDYyLjkwNzk5Ny02Mi45MDk5OTcgMTY1LjIxMjk5MiAwIDIyOC4xMjA5ODkgNjIuOTA4OTk3IDYyLjkwNzk5NyAxNjUuMjExOTkyIDYyLjkwNzk5NyAyMjguMTIxOTg5IDBsMTg0LjUxNjk5MS0xODQuNTE3OTkxYzExLjcyODk5OS0xMS43Mjg5OTkgMzAuNzkzOTk4LTExLjcyODk5OSA0Mi41MjA5OTggMCAxMS43Mjg5OTkgMTEuNzI2OTk5IDExLjcyODk5OSAzMC43OTA5OTggMCA0Mi41MjA5OThMMzc3LjkzODAwNyA5NTkuMjI2OTUzQzMzNC43NTUwMDkgMTAwMi40MDc5NTEgMjc4LjA0MDAxMSAxMDIzLjk5OTk1IDIyMS4zMjUwMTQgMTAyMy45OTk5NUwyMjEuMzg2MDE0IDEwMjMuOTk5OTV6IiAgLz48L3N2Zz4=" /></span> Connection
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path>
+        </svg>
+        Search medications, patients…
+      </div>
+      <div class="topbar-right">
+        <span id="badge-edge" class="badge neutral"><span class="dot"></span>Edge: unknown</span>
+        <span id="badge-central" class="badge neutral"><span class="dot"></span>Central: unknown</span>
+        <span id="badge-mode" class="badge neutral">Mode: setup needed</span>
+        <div class="user-pill">
+          <div class="avatar">Rx</div>
+          <div class="user-meta">
+            <div class="user-name" id="ui-user-name">Pharmacist</div>
+            <div class="user-role" id="ui-user-role">Browser front door</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+      <div id="banner" class="banner"></div>
+
+      <section class="tab-panel active" id="tab-dispense">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Dispense Medication</div>
+            <div class="page-sub">Record patient medication dispensing.</div>
+          </div>
+          <div class="page-actions">
+            <button class="btn ghost" onclick="refreshHealth(true)">↻ Refresh</button>
+            <button class="btn primary" onclick="submitDispense()">Record Dispense</button>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-top">
+              <div class="stat-icon-wrap"><img alt="" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIFVwbG9hZGVkIHRvOiBTVkcgUmVwbywgd3d3LnN2Z3JlcG8uY29tLCBHZW5lcmF0b3I6IFNWRyBSZXBvIE1peGVyIFRvb2xzIC0tPgo8IURPQ1RZUEUgc3ZnIFBVQkxJQyAiLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4iICJodHRwOi8vd3d3LnczLm9yZy9HcmFwaGljcy9TVkcvMS4xL0RURC9zdmcxMS5kdGQiPgo8c3ZnIGZpbGw9ImN1cnJlbnRDb2xvciIgdmVyc2lvbj0iMS4xIiBpZD0iQ2FwYV8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiAKCSAgIHZpZXdCb3g9IjAgMCAzOTkuOTQ3IDM5OS45NDciCgkgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+CjxnPgoJPHBhdGggZD0iTTM2NS4yMjYsMzQuNjkzQzM0Mi44NTQsMTIuMzIxLDMxMy4xMDgsMCwyODEuNDY4LDBzLTYxLjM4NiwxMi4zMjEtODMuNzU5LDM0LjY5M0wzNC42NjUsMTk3LjczNwoJCWMtNDYuMTg0LDQ2LjE4Ni00Ni4xODQsMTIxLjMzMiwwLjAwMSwxNjcuNTE4YzIyLjM3MywyMi4zNzMsNTIuMTE5LDM0LjY5Miw4My43NTgsMzQuNjkyYzMxLjYzOSwwLDYxLjM4Ni0xMi4zMTksODMuNzU5LTM0LjY5MgoJCWwxNjMuMDQ0LTE2My4wNDRjMjIuMzczLTIyLjM3NCwzNC42OTQtNTIuMTIsMzQuNjk0LTgzLjc1OUMzOTkuOTIsODYuODExLDM4Ny41OTksNTcuMDY2LDM2NS4yMjYsMzQuNjkzIE0xOTEuMTI1LDM1NC4xOTcKCQljLTE5LjQxOSwxOS40MjEtNDUuMjM5LDMwLjExNS03Mi43MDIsMzAuMTE1Yy0yNy40NjMsMC01My4yODQtMTAuNjk0LTcyLjcwMy0zMC4xMTVjLTQwLjA4OC00MC4wODgtNDAuMDg4LTEwNS4zMTUsMC0xNDUuNDA1CgkJbDgxLjUyMi04MS41MjFjMCwwLDg0Ljk1OC04NC4yNjIsODYuMjE1LTg1LjIzNGMxLjI3MS0wLjk1MywyLjU5Mi0xLjg0MSwzLjg3OS0yLjc1OWM1LjIyNi0zLjU3MiwxMC42NTktNi43NDMsMTYuMjY5LTkuMzQKCQljMTEuMjA0LTUuMjMzLDIzLjAxMS04LjIxNSwzNC4yOS05LjA1M2M1LjY0Ny0wLjM2MiwxMS4xNS0wLjI1NiwxNi40MDgsMC4yOThjMS4zMTEsMC4xNywyLjYwOCwwLjMzOSwzLjg5NiwwLjUwNgoJCWMxLjI4MSwwLjE5OCwyLjU0MSwwLjQ1NSwzLjc5MSwwLjY3OGMxLjI1MSwwLjIwOCwyLjQ3NCwwLjUwMiwzLjY4MiwwLjc5OGMxLjIwNCwwLjMwNCwyLjQxMSwwLjU0LDMuNTY5LDAuOTE2CgkJYzEuMTYxLDAuMzUzLDIuMzExLDAuNzAyLDMuNDQ3LDEuMDQ3YzEuMTM1LDAuMzM5LDIuMjI0LDAuNzgzLDMuMzE1LDEuMTYyYzIuMTksMC43NDQsNC4yNTEsMS42NzEsNi4yNjQsMi41MzEKCQljMS4wMTEsMC40MjUsMS45NjUsMC45NDMsMi45MjUsMS40YzAuOTQ5LDAuNDgxLDEuOTA2LDAuOTA4LDIuODEsMS40MTRjMC45MDIsMC41MDEsMS43OTEsMC45OTQsMi42NjcsMS40NzkKCQljMC40MzYsMC4yNDUsMC44NjcsMC40ODgsMS4yOTYsMC43MjljMC40MTcsMC4yNjEsMC44MzMsMC41MjEsMS4yNDIsMC43NzhjNi41OTYsNC4wNTksMTEuOTA3LDguMTE4LDE2LjEyNSwxMS41OTcKCQljNS40MDYsNC40NTksOC4wOTYsNi45MzQsMTAsOS4xMjVjMC45NTMsMS4wOTcsMi41OTYsMy4xMDEsMi4wODMsMy42MjVjLTAuNDMsMC40NC0yLjEzMS0wLjgwMi00LjQyNy0yLjU2MwoJCWMtMi4yNzMtMS43NjgtNS41MjMtNC4yNDUtOS45ODItNy4xMzljLTQuNTE1LTIuODEzLTEwLjExOC01Ljk4Ni0xNi44MDctOC44NDljLTYuNjY2LTIuODk2LTE0LjQ3Ni01LjM1Ny0yMy4xMDEtNi43NzkKCQljLTQuMzItMC42NDItOC44MjQtMS4xNjEtMTMuNDktMS4xNTFjLTQuNjU5LTAuMDA4LTkuNDUzLDAuMjg0LTE0LjMwNywxLjA0NGMtOS43LDEuNTM2LTE5LjYwMiw0LjgxNC0yOS4wMzYsOS44MzQKCQljLTQuNjkzLDIuNTU1LTkuMzA1LDUuNDYzLTEzLjczMiw4Ljc2OGMtMS4wODksMC44NS04MS44MDYsNzkuMDU5LTg2LjE1NCw4My41MDNjLTEuNTQ3LDEuNTgxLTEuNDYzLDMuNDE1LDAuNDEyLDUuMjkKCQljMzAuMzgzLDMwLjM4MywxMTUuMTcxLDExNS4wOCwxMjkuNzE5LDEyOS42MTNjMS4zOSwxLjM4OCwxLjcwNiwyLjU1OSwwLjI3MSw0LjAwMgoJCUMyNDUuMzMyLDMwMC4xMzYsMTkxLjEyNSwzNTQuMTk3LDE5MS4xMjUsMzU0LjE5N3oiLz4KPC9nPgo8L3N2Zz4=" /></div>
+              <span id="kpi-dispense-badge" class="stat-delta neutral">—</span>
+            </div>
+            <div class="stat-label">Dispense Path</div>
+            <div id="kpi-dispense" class="stat-value">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <div class="stat-icon-wrap"><img alt="" src="data:image/svg+xml;base64,PHN2ZyBpZD0iTGF5ZXJfMSIgZGF0YS1uYW1lPSJMYXllciAxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjEuMDYgMTIyLjg4Ij48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGwtcnVsZTpldmVub2RkO308L3N0eWxlPjwvZGVmcz48dGl0bGU+ZGF0YWJhc2Utc2VydmVyPC90aXRsZT48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0xOCwyNy4xNmM4LjI1LDIuNzYsMTkuNzQsNC40NiwzMi41LDQuNDZTNzQuNzUsMjkuOTIsODMsMjcuMTZjNy4yNC0yLjQyLDExLjcyLTUuMzUsMTEuNzItOC4yMVM5MC4yNCwxMy4xNiw4MywxMC43NEM3NC43NSw4LDYzLjI2LDYuMjgsNTAuNTEsNi4yOFMyNi4yNiw4LDE4LDEwLjc0QzIuNjUsMTUuODcsMi4yMiwyMS44OSwxOCwyNy4xNlptMTAzLjA1LDk0YzAtLjE0LDAtLjI2LDAtLjM5VjUxLjM3YzAtLjEzLDAtLjI3LDAtLjM5YTIuMTQsMi4xNCwwLDAsMC0uNTktMS4xMSwyLjEyLDIuMTIsMCwwLDAtMS41LS42M0g3OC45YTIuMTUsMi4xNSwwLDAsMC0yLjEzLDIuMTN2NjkuMzdhMi4wOCwyLjA4LDAsMCwwLC42MywxLjUsMiwyLDAsMCwwLDEuNS42M0gxMTlhMi4xMiwyLjEyLDAsMCwwLDEuNS0uNjMsMi4yOCwyLjI4LDAsMCwwLC41OC0xLjEyWm0tMTYuNDctMTVhNi4zNCw2LjM0LDAsMCwxLTEyLjQxLjcxbDYuNzgtNC4yLDUuNjMsMy40OVpNMTEzLjIsNjEuNHY1LjMzSDg0LjY3VjYxLjRabTAsMTQuNzR2NS4zM0g5OS4xNEw5OSw4MWwtLjE4LjQ0SDg0LjY3Vjc2LjE0Wk02LjM1LDQ4LjczYy41NywyLjY3LDQuOTIsNS4zNiwxMS42Niw3LjYxLDguMjUsMi43NiwxOS43NCw0LjQ2LDMyLjUsNC40Niw0LjQ1LDAsOC43NS0uMjEsMTIuODEtLjZ2Ni4zMmMtNC4wOC4zOC04LjM4LjU4LTEyLjguNTgtMTMuNCwwLTI1LjU5LTEuODMtMzQuNDgtNC44YTM5LjYxLDM5LjYxLDAsMCwxLTkuNjctNC41NlY3Ni41N2MuNTcsMi42Nyw0LjkyLDUuMzYsMTEuNjYsNy42MSw4LjI1LDIuNzUsMTkuNzQsNC40NiwzMi41LDQuNDYsNC40NCwwLDguNzQtLjIxLDEyLjc5LS41OXY2LjI5Yy00LjA5LjM3LTguMzkuNTctMTIuODEuNTctMTMuNCwwLTI1LjU5LTEuODMtMzQuNDgtNC44MWEzOS42MSwzOS42MSwwLDAsMS05LjY3LTQuNTV2MTguODNjLjU3LDIuNjcsNC45Miw1LjM2LDExLjY2LDcuNjEsOC4yNSwyLjc1LDE5Ljc0LDQuNDYsMzIuNSw0LjQ2LDQuNDUsMCw4Ljc1LS4yMSwxMi44LS42djQuODljMCwuNDcsMCwuOTQuMDcsMS40MS00LjExLjM4LTguNDMuNTgtMTIuODcuNTgtMTMuNCwwLTI1LjU5LTEuODMtMzQuNDgtNC44MS00LjY5LTEuNTYtMTYtNi43LTE2LTEyLjg1di0yUTAsNjEsMCwxOUMwLDEzLjA4LDYuMTIsOC4xMSwxNiw0LjgsMjQuOTEsMS44MywzNy4xMSwwLDUwLjUxLDBTNzYuMDksMS44Myw4NSw0LjgxczE0Ljg5LDcuNCwxNS44OCwxMi41OWEzLjA2LDMuMDYsMCwwLDEsLjE4LDEuMDZWMzUuNzlIOTQuNzVWMjguNDhBMzkuNzEsMzkuNzEsMCwwLDEsODUsMzMuMDljLTguODksMy0yMS4wOCw0LjgxLTM0LjQ3LDQuODFTMjQuOTIsMzYuMDcsMTYsMzMuMDlhMzkuNjEsMzkuNjEsMCwwLDEtOS42Ny00LjU1VjQ4LjczWiIvPjwvc3ZnPg==" /></div>
+              <span id="kpi-database-badge" class="stat-delta neutral">—</span>
+            </div>
+            <div class="stat-label">Database View</div>
+            <div id="kpi-database" class="stat-value">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <div class="stat-icon-wrap"><img alt="" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIFVwbG9hZGVkIHRvOiBTVkcgUmVwbywgd3d3LnN2Z3JlcG8uY29tLCBHZW5lcmF0b3I6IFNWRyBSZXBvIE1peGVyIFRvb2xzIC0tPgo8IURPQ1RZUEUgc3ZnIFBVQkxJQyAiLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4iICJodHRwOi8vd3d3LnczLm9yZy9HcmFwaGljcy9TVkcvMS4xL0RURC9zdmcxMS5kdGQiPgo8c3ZnIGZpbGw9ImN1cnJlbnRDb2xvciIgdmVyc2lvbj0iMS4xIiBpZD0iQ2FwYV8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiAKCSAgIHZpZXdCb3g9IjAgMCA0NTAuMDAxIDQ1MC4wMDEiCgkgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+CjxnPgoJPHBhdGggZD0iTTQ0OC41NTQsMTc3LjEwM2MwLDAtNDIuMTUtNTYuMzA3LTQyLjE3NS01Ni4zMzljLTAuMDExLTAuMDE1LTAuOTMtMS42NDctMy43NjItMi41NDhMMjI2Ljk3Myw2OC42MgoJCWMtMS4yOTEtMC4zNjQtMi42NTUtMC4zNjQtMy45NDYsMEw0Ny4zODMsMTE4LjIxNmMwLDAtMi4zOTgsMC42OTItMy44MzksMi42MzdjLTAuNTc3LDAuNzc5LTQyLjA5Nyw1Ni4yNS00Mi4wOTcsNTYuMjUKCQljLTEuMzkyLDEuODYyLTEuODEsNC4yNzgtMS4xMjIsNi40OTljMC42ODksMi4yMjEsMi40LDMuOTc4LDQuNjAxLDQuNzI1bDM3LjE3MSwxMi42MTV2MTAwLjg3NGMwLDIuOTM4LDEuNzcxLDUuNTg1LDQuNDg3LDYuNzA3CgkJbDE3NS42NDUsNzIuNTgxYzAuNTIyLDAuMjE2LDEuMTg0LDAuNTUxLDIuNzcxLDAuNTUxczIuNzcxLTAuNTUxLDIuNzcxLTAuNTUxbDE3NS42NDYtNzIuNTgxYzIuNzE2LTEuMTIyLDQuNDg2LTMuNzcsNC40ODYtNi43MDcKCQlWMjAwLjk0bDM3LjE3MS0xMi42MTVjMi4yMDEtMC43NDcsMy45MTItMi41MDUsNC42MDEtNC43MjVDNDUwLjM2MywxODEuMzgxLDQ0OS45NDUsMTc4Ljk2NSw0NDguNTU0LDE3Ny4xMDN6IE0xOS4wNjIsMTc3Ljc5NAoJCWwzMy4xMzgtNDQuMjhsMTMuNDAzLDMuNjkybDc1LjQzMSwyMC43NzhsNzEuMzM1LDE5LjY1MmwtNDEuODM3LDUxLjU2NUwxOS4wNjIsMTc3Ljc5NHogTTIxNy43NDMsMzYzLjU0MmwtMTYxLjEzLTY2LjU4MXYtOTEuMDk0CgkJbDExNC4wNCwzOC43MDhjMC43NjQsMC4yNjEsMS41NTEsMC4zODQsMi4zMzIsMC4zODRjMi4xNDUsMCw0LjIzMS0wLjk1Myw1LjYzNS0yLjY4NmwzOS4xMjQtNDguMjE5TDIxNy43NDMsMzYzLjU0MgoJCUwyMTcuNzQzLDM2My41NDJ6IE0yMjUsMTY2LjA2Mkw3Ni4zNywxMjUuMTE2TDIyNSw4My4xNDZsMTQ4LjYzLDQxLjk3TDIyNSwxNjYuMDYyeiBNMzkzLjM4OCwyOTYuOTYxbC0xNjEuMTMxLDY2LjU4MVYxOTQuMDU2CgkJbDM5LjEyNCw0OC4yMTljMS40MDQsMS43MzEsMy40OSwyLjY4Niw1LjYzNSwyLjY4NmMwLjc4MSwwLDEuNTY4LTAuMTIzLDIuMzMzLTAuMzg0bDExNC4wMzktMzguNzA4VjI5Ni45NjFMMzkzLjM4OCwyOTYuOTYxegoJCSBNMjc5LjQ2OSwyMjkuMjAzbC00MS44MzctNTEuNTY1bDE2MC4xNjktNDQuMTI0bDMzLjEzOSw0NC4yOEwyNzkuNDY5LDIyOS4yMDN6Ii8+CjwvZz4KPC9zdmc+" /></div>
+              <span class="stat-delta neutral">branch</span>
+            </div>
+            <div class="stat-label">Branch ID</div>
+            <div id="kpi-branch" class="stat-value">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <div class="stat-icon-wrap"><img alt="" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIFVwbG9hZGVkIHRvOiBTVkcgUmVwbywgd3d3LnN2Z3JlcG8uY29tLCBHZW5lcmF0b3I6IFNWRyBSZXBvIE1peGVyIFRvb2xzIC0tPgo8IURPQ1RZUEUgc3ZnIFBVQkxJQyAiLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4iICJodHRwOi8vd3d3LnczLm9yZy9HcmFwaGljcy9TVkcvMS4xL0RURC9zdmcxMS5kdGQiPgo8c3ZnIGZpbGw9ImN1cnJlbnRDb2xvciIgICB2ZXJzaW9uPSIxLjEiIGlkPSJDYXBhXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIAoJIHZpZXdCb3g9IjAgMCA0ODkuODAxIDQ4OS44MDEiIHhtbDpzcGFjZT0icHJlc2VydmUiPgo8Zz4KCTxwYXRoIGQ9Ik00ODQuNTg2LDIzMy4yMTJjLTUuMDg0LTQuNTc4LTEyNS43NzktMTExLjk2Ny0yMzkuNjg5LTExMS45NjdjLTExMy45MDMsMC0yMzQuNTk4LDEwNy4zODktMjM5LjY4OCwxMTEuOTY3CgkJQzEuODkxLDIzNi4xOTQsMCwyNDAuNDUyLDAsMjQ0LjkwOWMwLDQuNDU1LDEuODkxLDguNzExLDUuMjA4LDExLjY5M2M1LjA5LDQuNTgsMTI1Ljc4NSwxMTEuOTUzLDIzOS42ODgsMTExLjk1MwoJCWMxMTMuOTExLDAsMjM0LjYwNi0xMDcuMzczLDIzOS42ODktMTExLjk1M2MzLjMyMi0yLjk4Miw1LjIxNS03LjIzOCw1LjIxNS0xMS42OTMKCQlDNDg5LjgwMSwyNDAuNDUyLDQ4Ny45MDgsMjM2LjE5NCw0ODQuNTg2LDIzMy4yMTJ6IE0yNDQuODk2LDMzMy45MTVjLTQ5LjA2OCwwLTg5LjAwNS0zOS45MjQtODkuMDA1LTg5LjAwNgoJCWMwLTQ5LjA4NiwzOS45MzctODkuMDEsODkuMDA1LTg5LjAxYzQ5LjA3MiwwLDg5LjAxMSwzOS45MjQsODkuMDExLDg5LjAxQzMzMy45MDgsMjkzLjk5MSwyOTMuOTY5LDMzMy45MTUsMjQ0Ljg5NiwzMzMuOTE1egoJCSBNMTQ0LjEzNywxNzkuMDQyYy0xMi40MjIsMTguOTQ5LTE5LjcyMSw0MS41NTMtMTkuNzIxLDY1Ljg2N2MwLDI0LjI3Nyw3LjI2OCw0Ni44NTUsMTkuNjg2LDY1LjgyMwoJCWMtNDUuMDU3LTIxLjIwNy04My45ODItNDkuOTQzLTEwMy44MjItNjUuODE4QzYwLjExOSwyMjkuMDAzLDk5LjA0NSwyMDAuMjM1LDE0NC4xMzcsMTc5LjA0MnogTTM0NS42NjQsMzEwLjc1NwoJCWMxMi40MTYtMTguOTQ3LDE5LjcxOS00MS41NTEsMTkuNzE5LTY1Ljg0OGMwLTI0LjI4MS03LjI4NS00Ni44NzMtMTkuNjg4LTY1LjgyMmM0NS4wNDMsMjEuMjA5LDgzLjk2OSw0OS45NDUsMTAzLjgyMSw2NS44MjIKCQlDNDI5LjY3NywyNjAuOCwzOTAuNzU2LDI4OS41NSwzNDUuNjY0LDMxMC43NTd6Ii8+Cgk8cGF0aCBkPSJNMjQ0Ljg5NiwxOTQuMjU5Yy0yNy45ODIsMC01MC42NDgsMjIuNjY0LTUwLjY0OCw1MC42NWMwLDI3Ljk4MiwyMi42NjYsNTAuNjQ4LDUwLjY0OCw1MC42NDgKCQljMjcuOTg4LDAsNTAuNjU2LTIyLjY2Niw1MC42NTYtNTAuNjQ4QzI5NS41NTMsMjE2LjkyMywyNzIuODg1LDE5NC4yNTksMjQ0Ljg5NiwxOTQuMjU5eiBNMjQ0Ljg5NiwyMjYuMjk4CgkJYy0xMC4yNjIsMC0xOC42MDcsOC4zNDYtMTguNjA3LDE4LjYxMWMwLDQuMzQ4LTMuNTMzLDcuODY1LTcuODY3LDcuODY1Yy00LjM2NSwwLTcuODY5LTMuNTE4LTcuODY5LTcuODY1CgkJYzAtMTguOTM0LDE1LjQtMzQuMzQ4LDM0LjM0NC0zNC4zNDhjNC4zNTIsMCw3Ljg3MSwzLjUyLDcuODcxLDcuODY3QzI1Mi43NjgsMjIyLjc4LDI0OS4yNDgsMjI2LjI5OCwyNDQuODk2LDIyNi4yOTh6Ii8+CjwvZz4KPC9zdmc+" /></div>
+              <span id="kpi-nodes-badge" class="stat-delta neutral">nodes</span>
+            </div>
+            <div class="stat-label">Active Nodes</div>
+            <div id="kpi-nodes" class="stat-value">0 / 2</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">New Dispense</div>
+            <div class="form-grid">
+              <div class="f2">
+                <label for="d-med">Medication</label>
+                <select id="d-med"></select>
+              </div>
+              <div class="f1">
+                <label for="d-qty">Quantity</label>
+                <input id="d-qty" type="number" min="1" value="1" />
+              </div>
+              <div class="f1">
+                <label for="d-pharm">Pharmacist ID</label>
+                <input id="d-pharm" placeholder="PH-001" />
+              </div>
+              <div class="f2">
+                <label for="d-patient">Patient ID</label>
+                <input id="d-patient" placeholder="P-0042" />
+              </div>
+              <div class="f12">
+                <button class="btn primary" onclick="submitDispense()" style="width:100%;">Record Dispense</button>
+              </div>
+            </div>
+            <div class="footer-note">Records are synced automatically to the central database.</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Recent Transactions</div>
+            <div id="recent-source" class="footer-note" style="margin-top:0; margin-bottom:.55rem;">Source: —</div>
+            <div id="recent-tx"><div class="empty">Loading…</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-inventory">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Operational Inventory</div>
+            <div class="page-sub">View current medication stock levels.</div>
+          </div>
+          <div class="page-actions"><button class="btn ghost" onclick="loadInventoryTable()">↻ Refresh</button></div>
+        </div>
+        <div class="card">
+          <div id="inventory-source" class="footer-note" style="margin-top:0; margin-bottom:.55rem;">Source: —</div>
+          <div id="inventory-table"><div class="empty">Loading…</div></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-database">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Database Administration</div>
+            <div class="page-sub">Manage medications, patients, and records.</div>
+          </div>
+        </div>
+        <div id="database-lock" class="banner warn" style="display:none;">Central node is offline. The database view is disabled.</div>
+        <div id="database-panel" class="locked">
+          <div class="two-col" style="margin-bottom:1rem;">
+            <div class="card">
+              <div class="card-title">Register Medication</div>
+              <div class="form-grid">
+                <div class="f1">
+                  <label for="m-id">Medication ID</label>
+                  <input id="m-id" placeholder="MED-001" />
+                </div>
+                <div class="f2">
+                  <label for="m-name">Name</label>
+                  <input id="m-name" placeholder="Paracetamol 500mg" />
+                </div>
+                <div class="f1">
+                  <label for="m-unit">Unit</label>
+                  <input id="m-unit" placeholder="tablet" value="tablet" />
+                </div>
+                <div class="f1">
+                  <label for="m-min">Min stock</label>
+                  <input id="m-min" type="number" value="10" />
+                </div>
+                <div class="f12">
+                  <button class="btn success" onclick="addMedication()" style="width:100%;">Save Medication</button>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">Add Stock</div>
+              <div class="form-grid">
+                <div class="f2">
+                  <label for="s-med">Medication</label>
+                  <select id="s-med"></select>
+                </div>
+                <div class="f1">
+                  <label for="s-qty">Quantity</label>
+                  <input id="s-qty" type="number" min="1" value="10" />
+                </div>
+                <div class="f1">
+                  <label for="s-by">Added By</label>
+                  <input id="s-by" placeholder="ADM-001" />
+                </div>
+                <div class="f12">
+                  <button class="btn success" onclick="addStock()" style="width:100%;">Add Stock</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="card">
+              <div class="card-title">Patient Registry</div>
+              <div class="form-grid">
+                <div class="f1">
+                  <label for="p-id">Patient ID</label>
+                  <input id="p-id" placeholder="P-0001" />
+                </div>
+                <div class="f2">
+                  <label for="p-name">Name</label>
+                  <input id="p-name" placeholder="Ahmed Mohamed" />
+                </div>
+                <div class="f1">
+                  <label for="p-dob">Date of birth</label>
+                  <input id="p-dob" type="date" />
+                </div>
+                <div class="f2">
+                  <label for="p-contact">Contact</label>
+                  <input id="p-contact" placeholder="+20 1xx xxx xxxx" />
+                </div>
+                <div class="f1">
+                  <label for="p-branch">Branch ID</label>
+                  <input id="p-branch" placeholder="branch-1" />
+                </div>
+                <div class="f12">
+                  <button class="btn primary" onclick="savePatient()" style="width:100%;">Save Patient</button>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">Database Tables</div>
+              <div class="inner-tabs">
+                <button class="inner-tab-btn active" onclick="setDatabaseView('medications', this)">Medications</button>
+                <button class="inner-tab-btn" onclick="setDatabaseView('patients', this)">Patients</button>
+                <button class="inner-tab-btn" onclick="setDatabaseView('transactions', this)">Transactions</button>
+              </div>
+              <div id="db-view"><div class="empty">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-status">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Node Status</div>
+            <div class="page-sub">View system connection status.</div>
+          </div>
+          <div class="page-actions"><button class="btn ghost" onclick="refreshHealth(true)">↻ Refresh</button></div>
+        </div>
+        <div class="two-col" style="margin-bottom:1rem;">
+          <div class="card">
+            <div class="card-title">Edge Node</div>
+            <div id="edge-chip" class="status-chip unknown">Checking…</div>
+            <div id="edge-detail" class="status-line"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Central Node</div>
+            <div id="central-chip" class="status-chip unknown">Checking…</div>
+            <div id="central-detail" class="status-line"></div>
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">Current Routing</div>
+            <div id="routing-summary" style="display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.2rem;"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Synchronization</div>
+            <div class="footer-note" style="margin-top:.2rem; font-size:.88rem; line-height:1.6;">
+              System routing and synchronization status active.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-settings">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Connection Settings</div>
+            <div class="page-sub">Configure system connection parameters.</div>
+          </div>
+        </div>
+        <div class="card" style="max-width:760px;">
+          <div class="card-title">Node Configuration</div>
+          <div class="settings-grid">
+            <div>
+              <label for="edge-api">Edge Node URL</label>
+              <input id="edge-api" placeholder="http://127.0.0.1:8080" />
+            </div>
+            <div>
+              <label for="central-api">Central Node URL</label>
+              <input id="central-api" placeholder="http://127.0.0.1:8080" />
+            </div>
+            <div>
+              <label for="branch-id">Branch ID</label>
+              <input id="branch-id" placeholder="branch-1" />
+            </div>
+            <div>
+              <label for="auth-token">Auth Token</label>
+              <input id="auth-token" type="password" placeholder="dev-pharmacist-token" />
+            </div>
+            <div style="display:flex; gap:.5rem; align-items:flex-end;">
+              <button class="btn primary" onclick="saveSettings()">Save</button>
+              <button class="icon-btn" onclick="refreshHealth(true)" title="Refresh">
+                <img alt="" src="data:image/svg+xml;base64,PHN2ZyBjbGFzcz0ic3ZnLWljb24iIHN0eWxlPSJ3aWR0aDogMWVtOyBoZWlnaHQ6IDFlbTt2ZXJ0aWNhbC1hbGlnbjogbWlkZGxlO2ZpbGw6IGN1cnJlbnRDb2xvcjtvdmVyZmxvdzogaGlkZGVuOyIgdmlld0JveD0iMCAwIDEwMjQgMTAyNCIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik01ODIuMjM5OTk3IDY2My4xNDI5NjhjLTU2LjcxMzk5NyAwLTExMy40MjY5OTQtMjEuNTg5OTk5LTE1Ni42MDk5OTItNjQuNzcyOTk3LTExLjcyODk5OS0xMS43MjY5OTktMTEuNzI4OTk5LTMwLjc5Mjk5OCAwLTQyLjUyMDk5OCAxMS43Mjg5OTktMTEuNzI2OTk5IDMwLjc5MTk5OC0xMS43MjY5OTkgNDIuNTIwOTk4IDAgNjIuOTEwOTk3IDYyLjkwOTk5NyAxNjUuMjEyOTkyIDYyLjkwOTk5NyAyMjguMTIxOTg5IDBMOTE0Ljk0OTk4IDMzNy4xNjk5ODRjNjIuOTEwOTk3LTYyLjkwOTk5NyA2Mi45MTA5OTctMTY1LjIxMTk5MiAwLTIyOC4xMjE5ODktNjIuOTA3OTk3LTYyLjkwOTk5Ny0xNjUuMjEwOTkyLTYyLjkwOTk5Ny0yMjguMTE5OTg5IDBMNTAyLjMxMyAyOTMuNTY1OTg2Yy0xMS43Mjg5OTkgMTEuNzI3OTk5LTMwLjc5Mjk5OCAxMS43Mjc5OTktNDIuNTIxOTk4IDAtMTEuNzI2OTk5LTExLjcyNzk5OS0xMS43MjY5OTktMzAuNzkyOTk4IDAtNDIuNTIwOTk4TDY0NC4zMDg5OTQgNjYuNTI3OTk3Yzg2LjM2NDk5Ni04Ni4zNjQ5OTYgMjI2Ljg1ODk4OS04Ni4zNjQ5OTYgMzEzLjE2Mzk4NSAwIDg2LjMwNDk5NiA4Ni4zNjM5OTYgODYuMzYzOTk2IDIyNi44NTc5ODkgMCAzMTMuMTYzOTg1TDczOC43OTQ5ODkgNTk4LjM2ODk3MWMtNDMuMTgzOTk4IDQzLjE4Mzk5OC05OS44OTg5OTUgNjQuNzcyOTk3LTE1Ni42MTI5OTIgNjQuNzcyOTk3TDU4Mi4yMzk5OTcgNjYzLjE0MTk2OHpNMjIxLjM4NjAxNCAxMDIzLjk5OTk1Yy01Ni43MTQ5OTcgMC0xMTMuNDI5OTk0LTIxLjU5MTk5OS0xNTYuNjExOTkyLTY0Ljc3Mjk5Ny04Ni4zNjM5OTYtODYuMzY0OTk2LTg2LjM2Mzk5Ni0yMjYuODU2OTg5IDAtMzEzLjE2Mzk4NWwyMTguNjc4OTg5LTIxOC42Nzg5ODljODYuMzY0OTk2LTg2LjM2NDk5NiAyMjYuODU4OTg5LTg2LjM2NDk5NiAzMTMuMTYyOTg1IDAgMTEuNzI3OTk5IDExLjcyNzk5OSAxMS43Mjc5OTkgMzAuNzkxOTk4IDAgNDIuNTIwOTk4LTExLjcyNzk5OSAxMS43MjY5OTktMzAuNzkyOTk4IDExLjcyNjk5OS00Mi41MTg5OTggMC02Mi45MTA5OTctNjIuOTA5OTk3LTE2NS4yMTM5OTItNjIuOTA5OTk3LTIyOC4xMjI5ODkgMEwxMDcuMjk0MDIgNjg4LjU4Mzk2NmMtNjIuOTA5OTk3IDYyLjkwNzk5Ny02Mi45MDk5OTcgMTY1LjIxMjk5MiAwIDIyOC4xMjA5ODkgNjIuOTA4OTk3IDYyLjkwNzk5NyAxNjUuMjExOTkyIDYyLjkwNzk5NyAyMjguMTIxOTg5IDBsMTg0LjUxNjk5MS0xODQuNTE3OTkxYzExLjcyODk5OS0xMS43Mjg5OTkgMzAuNzkzOTk4LTExLjcyODk5OSA0Mi41MjA5OTggMCAxMS43Mjg5OTkgMTEuNzI2OTk5IDExLjcyODk5OSAzMC43OTA5OTggMCA0Mi41MjA5OThMMzc3LjkzODAwNyA5NTkuMjI2OTUzQzMzNC43NTUwMDkgMTAwMi40MDc5NTEgMjc4LjA0MDAxMSAxMDIzLjk5OTk1IDIyMS4zMjUwMTQgMTAyMy45OTk5NUwyMjEuMzg2MDE0IDEwMjMuOTk5OTV6IiAgLz48L3N2Zz4=" />
+              </button>
+            </div>
+          </div>
+          <div class="footer-note">Values persist in localStorage so you only need to set them once.</div>
+        </div>
+        <div class="two-col" style="margin-top:1rem;">
+          <div class="card">
+            <div class="card-title">Edge Node</div>
+            <div id="edge-chip2" class="status-chip unknown">Checking…</div>
+            <div id="edge-detail2" class="status-line"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Central Node</div>
+            <div id="central-chip2" class="status-chip unknown">Checking…</div>
+            <div id="central-detail2" class="status-line"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+const STORAGE = {
+  edge: 'smart-pharmacy.edge_api',
+  central: 'smart-pharmacy.central_api',
+  branch: 'smart-pharmacy.branch_id',
+  auth: 'smart-pharmacy.auth_token',
+};
+const DEFAULT_AUTH_TOKEN = 'dev-pharmacist-token';
+
+let EDGE_API = localStorage.getItem(STORAGE.edge) || '';
+let CENTRAL_API = localStorage.getItem(STORAGE.central) || '';
+let BRANCH_ID = localStorage.getItem(STORAGE.branch) || '';
+let AUTH_TOKEN = normalizeAuthToken(localStorage.getItem(STORAGE.auth));
+let edgeState = { alive:false, info:null, error:'not checked yet' };
+let centralState = { alive:false, info:null, error:'not checked yet' };
+let activeTab = 'dispense';
+let lastKnownEdgeBranch = localStorage.getItem('pharmacy_edge_branch_id') || '';
+let dbView = 'medications';
+let pollTimer = null;
+let currentRole = null;
+let edgeSeedAttempted = false;
+
+// New Sign-In Function
+function signIn(role) {
+  currentRole = role;
+  document.getElementById('login-overlay').classList.add('hidden');
+  
+  const settingsNav = document.getElementById('nav-settings-group');
+  const uiUserName = document.getElementById('ui-user-name');
+  const uiUserRole = document.getElementById('ui-user-role');
+  
+  if (role === 'pharmacist') {
+    settingsNav.style.display = 'none';
+    uiUserName.textContent = 'Pharmacist';
+    uiUserRole.textContent = 'Dispense Access';
+  } else {
+    settingsNav.style.display = 'block';
+    uiUserName.textContent = 'Administrator';
+    uiUserRole.textContent = 'Full Access';
+  }
+  
+  // Start app operations after sign in
+  init();
+}
+
+function esc(v) {
+  return String(v == null ? '' : v);
+}
+
+function normalizeAuthToken(value) {
+  return String(value || '').trim() || DEFAULT_AUTH_TOKEN;
+}
+
+function persistAuthToken(value) {
+  AUTH_TOKEN = normalizeAuthToken(value);
+  localStorage.setItem(STORAGE.auth, AUTH_TOKEN);
+  const authEl = document.getElementById('auth-token');
+  if (authEl && document.activeElement !== authEl) {
+    authEl.value = AUTH_TOKEN;
+  }
+}
+
+function setBanner(type, msg) {
+  const banner = document.getElementById('banner');
+  if (!msg) {
+    banner.style.display = 'none';
+    banner.textContent = '';
+    return;
+  }
+  banner.className = 'banner ' + type;
+  banner.textContent = msg;
+  banner.style.display = 'block';
+}
+
+function setChip(el, alive, txt) {
+  el.className = 'status-chip ' + (alive ? 'up' : 'down');
+  el.textContent = '\u25CF ' + txt;
+}
+
+function makeMini(text, kind) {
+  const span = document.createElement('span');
+  span.className = 'badge-mini ' + (kind || 'neutral');
+  span.textContent = text;
+  return span;
+}
+
+function updateNodeDetails(prefix, state, api) {
+  const detail = document.getElementById(prefix + '-detail');
+  const detail2 = document.getElementById(prefix + '-detail2');
+  const nodes = [detail, detail2].filter(Boolean);
+  nodes.forEach((node) => {
+    node.innerHTML = '';
+    if (!api) {
+      node.appendChild(makeMini('URL not set', 'warn'));
+      return;
+    }
+    if (state.alive && state.info) {
+      const info = state.info;
+      node.appendChild(makeMini('node ' + esc(info.node_id), 'good'));
+      node.appendChild(makeMini(esc(info.role), 'good'));
+      node.appendChild(makeMini('branch ' + esc(info.branch || '—'), 'neutral'));
+      node.appendChild(makeMini('replication ' + esc(info.replication_state || '—'), 'neutral'));
+      if (Array.isArray(info.capabilities)) {
+        node.appendChild(makeMini('capabilities ' + info.capabilities.join(', '), 'neutral'));
+      }
+    } else {
+      node.appendChild(makeMini(state.error || 'offline', 'bad'));
+    }
+  });
+}
+
+function openTab(tabId) {
+  if (tabId === 'database' && !centralState.alive) {
+    setBanner('warn', 'Central node is offline, so the database view is disabled.');
+    return;
+  }
+  activeTab = tabId;
+  document.querySelectorAll('.tab-panel').forEach((el) => el.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+
+  document.querySelectorAll('.nav-item').forEach((el) => {
+    el.classList.toggle('active', el.id === 'nav-' + tabId);
+  });
+
+  refreshActiveTab();
+}
+
+function saveSettings() {
+  EDGE_API = document.getElementById('edge-api').value.trim();
+  CENTRAL_API = document.getElementById('central-api').value.trim();
+  BRANCH_ID = document.getElementById('branch-id').value.trim();
+  persistAuthToken(document.getElementById('auth-token').value);
+  localStorage.setItem(STORAGE.edge, EDGE_API);
+  localStorage.setItem(STORAGE.central, CENTRAL_API);
+  localStorage.setItem(STORAGE.branch, BRANCH_ID);
+  refreshHealth(true);
+}
+
+async function fetchJson(base, path, opts, timeoutMs = 2500) {
+  if (!base) throw new Error('URL not set');
+  const url = base.replace(/\/+$/, '') + path;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const requestOpts = opts || {};
+  const originalHeaders = new Headers(requestOpts.headers || {});
+  const headers = new Headers(originalHeaders);
+  if (!headers.has('Authorization') && !headers.has('X-Pharmacy-Token')) {
+    headers.set('Authorization', 'Bearer ' + normalizeAuthToken(AUTH_TOKEN));
+  }
+  try {
+    const res = await fetch(url, {
+      ...requestOpts,
+      headers,
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    const parsed = await parseJsonResponse(res);
+    if (parsed.ok) return parsed.data;
+
+    const isAuthFailure = res.status === 401 && String(parsed.message).toLowerCase().includes('authentication');
+    const canRetryWithDefault = isAuthFailure && AUTH_TOKEN !== DEFAULT_AUTH_TOKEN &&
+      !originalHeaders.has('Authorization') && !originalHeaders.has('X-Pharmacy-Token');
+    if (canRetryWithDefault) {
+      persistAuthToken(DEFAULT_AUTH_TOKEN);
+      const retryHeaders = new Headers(originalHeaders);
+      retryHeaders.set('Authorization', 'Bearer ' + DEFAULT_AUTH_TOKEN);
+      const retryRes = await fetch(url, {
+        ...requestOpts,
+        headers: retryHeaders,
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      const retryParsed = await parseJsonResponse(retryRes);
+      if (retryParsed.ok) return retryParsed.data;
+      throw httpError(retryParsed.message, retryRes.status, retryParsed.data);
+    }
+
+    if (isAuthFailure) {
+      throw httpError('Authentication required. Check the Auth Token in Settings.', res.status, parsed.data);
+    }
+    throw httpError(parsed.message, res.status, parsed.data);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function parseJsonResponse(res) {
+  const txt = await res.text();
+  let data = null;
+  try { data = txt ? JSON.parse(txt) : null; } catch { data = txt; }
+  const message = data && data.error ? data.error : ('request failed (' + res.status + ')');
+  return { ok: res.ok, data, message };
+}
+
+function httpError(message, status, data) {
+  const err = new Error(message);
+  err.status = status;
+  err.data = data;
+  return err;
+}
+
+function newClientID(prefix) {
+  if (window.crypto && crypto.randomUUID) {
+    return prefix + '-' + crypto.randomUUID();
+  }
+  return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+}
+
+function sqlNowUTC() {
+  return new Date().toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+}
+
+async function checkNode(base) {
+  if (!base) return { alive:false, info:null, error:'URL not set' };
+  try {
+    const info = await fetchJson(base, '/api/status', {}, 2200);
+    return { alive:true, info, error:'' };
+  } catch (err) {
+    return { alive:false, info:null, error:(err && err.message) ? err.message : 'offline' };
+  }
+}
+
+function updateTopBadges() {
+  const edgeAlive = edgeState.alive;
+  const centralAlive = centralState.alive;
+  const activeNodes = (edgeAlive ? 1 : 0) + (centralAlive ? 1 : 0);
+
+  const edgeBadge = document.getElementById('badge-edge');
+  edgeBadge.className = 'badge ' + (edgeAlive ? 'good' : 'bad');
+  edgeBadge.innerHTML = '<span class="dot"></span>Edge: ' + (edgeAlive ? 'online' : 'offline');
+
+  const centralBadge = document.getElementById('badge-central');
+  centralBadge.className = 'badge ' + (centralAlive ? 'good' : 'bad');
+  centralBadge.innerHTML = '<span class="dot"></span>Central: ' + (centralAlive ? 'online' : 'offline');
+
+  const mode = document.getElementById('badge-mode');
+  if (edgeAlive && centralAlive) {
+    mode.className = 'badge good';
+    mode.innerHTML = '<span class="dot"></span>Both nodes online';
+  } else if (edgeAlive && !centralAlive) {
+    mode.className = 'badge warn';
+    mode.innerHTML = '<span class="dot"></span>Edge only';
+  } else if (!edgeAlive && centralAlive) {
+    mode.className = 'badge warn';
+    mode.innerHTML = '<span class="dot"></span>Central fallback';
+  } else {
+    mode.className = 'badge bad';
+    mode.innerHTML = '<span class="dot"></span>No nodes reachable';
+  }
+
+  document.getElementById('kpi-dispense').textContent = edgeAlive ? 'Edge' : (centralAlive ? 'Central' : '—');
+  document.getElementById('kpi-database').textContent = centralAlive ? 'Central' : 'Disabled';
+  document.getElementById('kpi-branch').textContent = BRANCH_ID || 'not set';
+  document.getElementById('kpi-nodes').textContent = activeNodes + ' / 2';
+
+  const d1 = document.getElementById('kpi-dispense-badge');
+  d1.className = 'stat-delta ' + (edgeAlive ? 'up' : (centralAlive ? 'neutral' : 'down'));
+  d1.textContent = edgeAlive ? 'edge' : (centralAlive ? 'fallback' : 'none');
+
+  const d2 = document.getElementById('kpi-database-badge');
+  d2.className = 'stat-delta ' + (centralAlive ? 'up' : 'down');
+  d2.textContent = centralAlive ? 'live' : 'offline';
+
+  const n = document.getElementById('kpi-nodes-badge');
+  n.className = 'stat-delta ' + (activeNodes === 2 ? 'up' : (activeNodes === 1 ? 'neutral' : 'down'));
+  n.textContent = 'nodes';
+
+  const navDb = document.getElementById('nav-database');
+  navDb.classList.toggle('locked', !centralAlive);
+
+  const lock = document.getElementById('database-panel');
+  lock.classList.toggle('locked', !centralAlive);
+  document.getElementById('database-lock').style.display = centralAlive ? 'none' : 'block';
+}
+
+function updateRoutingSummary() {
+  const box = document.getElementById('routing-summary');
+  box.innerHTML = '';
+  if (edgeState.alive) {
+    box.appendChild(makeMini('Dispense: edge', 'good'));
+  } else if (centralState.alive) {
+    box.appendChild(makeMini('Dispense: central fallback', 'warn'));
+  } else {
+    box.appendChild(makeMini('Dispense: unavailable', 'bad'));
+  }
+  box.appendChild(makeMini(centralState.alive ? 'Database: central' : 'Database: disabled', centralState.alive ? 'good' : 'bad'));
+  box.appendChild(makeMini(BRANCH_ID ? ('Branch: ' + BRANCH_ID) : 'Branch not set', BRANCH_ID ? 'neutral' : 'warn'));
+}
+
+function updateInputs() {
+  const edgeEl = document.getElementById('edge-api');
+  const centralEl = document.getElementById('central-api');
+  const branchEl = document.getElementById('branch-id');
+  if (document.activeElement !== edgeEl) edgeEl.value = EDGE_API;
+  if (document.activeElement !== centralEl) centralEl.value = CENTRAL_API;
+  if (document.activeElement !== branchEl) branchEl.value = BRANCH_ID;
+}
+
+function currentInventoryBase() {
+  if (edgeState.alive) return EDGE_API;
+  if (centralState.alive) return CENTRAL_API;
+  return '';
+}
+
+function currentDispenseBase() {
+  if (edgeState.alive) return EDGE_API;
+  if (centralState.alive) return CENTRAL_API;
+  return '';
+}
+
+function applyCentralBranchOverride(payload) {
+  payload.branch_override = lastKnownEdgeBranch || BRANCH_ID || (centralState.info && centralState.info.branch) || 'central';
+  return payload;
+}
+
+async function nodeHasStock(base, medicationID, quantity) {
+  try {
+    const items = await fetchJson(base, '/api/inventory');
+    const match = Array.isArray(items) ? items.find((item) => item.medication_id === medicationID) : null;
+    const balance = match ? Number(match.balance ?? match.quantity ?? 0) : 0;
+    return balance >= quantity;
+  } catch {
+    return false;
+  }
+}
+
+async function chooseDispenseBase(payload) {
+  if (edgeState.alive && centralState.alive) {
+    if (await nodeHasStock(EDGE_API, payload.medication_id, payload.quantity)) {
+      return EDGE_API;
+    }
+    applyCentralBranchOverride(payload);
+    return CENTRAL_API;
+  }
+  if (edgeState.alive) return EDGE_API;
+  if (centralState.alive) {
+    applyCentralBranchOverride(payload);
+    return CENTRAL_API;
+  }
+  return '';
+}
+
+function totalInventoryBalance(items) {
+  return Array.isArray(items)
+    ? items.reduce((sum, item) => sum + Number(item.balance ?? item.quantity ?? 0), 0)
+    : 0;
+}
+
+async function ensureEdgeSeededFromCentral() {
+  if (!edgeState.alive || !centralState.alive || edgeSeedAttempted) return;
+
+  try {
+    const [edgeItems, centralItems] = await Promise.all([
+      fetchJson(EDGE_API, '/api/inventory'),
+      fetchJson(CENTRAL_API, '/api/inventory'),
+    ]);
+    const shouldSeed = Array.isArray(centralItems) && centralItems.length > 0 &&
+      (!Array.isArray(edgeItems) || edgeItems.length === 0 ||
+        (totalInventoryBalance(centralItems) > 0 && totalInventoryBalance(edgeItems) === 0));
+    if (!shouldSeed) return;
+
+    edgeSeedAttempted = true;
+    const snapshot = await fetchJson(CENTRAL_API, '/api/sync/export', {}, 6000);
+    await fetchJson(EDGE_API, '/api/sync/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(snapshot),
+    }, 8000);
+    setBanner('good', 'Edge operational inventory was seeded from central.');
+  } catch (err) {
+    edgeSeedAttempted = true;
+    setBanner('warn', 'Edge is online, but existing central records could not be seeded to edge: ' + (err.message || err));
+  }
+}
+
+function currentDispensePayload() {
+  const medId = document.getElementById('d-med').value.trim();
+  const qty = parseInt(document.getElementById('d-qty').value, 10);
+  const pharm = document.getElementById('d-pharm').value.trim();
+  const patient = document.getElementById('d-patient').value.trim();
+  const payload = {
+    medication_id: medId,
+    quantity: qty,
+    pharmacist_id: pharm,
+    patient_id: patient,
+  };
+  if (!edgeState.alive && centralState.alive) {
+    payload.branch_override = lastKnownEdgeBranch || BRANCH_ID || (centralState.info && centralState.info.branch) || '';
+  }
+  return payload;
+}
+
+async function refreshHealth(forceReloadData) {
+  updateInputs();
+  const [edge, central] = await Promise.all([checkNode(EDGE_API), checkNode(CENTRAL_API)]);
+  edgeState = edge;
+  centralState = central;
+  if (edgeState.alive && edgeState.info?.branch) {
+    lastKnownEdgeBranch = edgeState.info.branch;
+    localStorage.setItem('pharmacy_edge_branch_id', lastKnownEdgeBranch);
+  }
+
+  const edgeChip = document.getElementById('edge-chip');
+  const centralChip = document.getElementById('central-chip');
+  const edgeChip2 = document.getElementById('edge-chip2');
+  const centralChip2 = document.getElementById('central-chip2');
+  setChip(edgeChip, edge.alive, edge.alive ? 'online' : 'offline');
+  setChip(centralChip, central.alive, central.alive ? 'online' : 'offline');
+  setChip(edgeChip2, edge.alive, edge.alive ? 'online' : 'offline');
+  setChip(centralChip2, central.alive, central.alive ? 'online' : 'offline');
+
+  updateNodeDetails('edge', edgeState, EDGE_API);
+  updateNodeDetails('central', centralState, CENTRAL_API);
+  updateTopBadges();
+  updateRoutingSummary();
+
+  if (edgeState.alive && centralState.alive) {
+    setBanner('good', 'Both nodes are online. Inventory and dispensing use edge; database view uses central.');
+  } else if (edgeState.alive && !centralState.alive) {
+    setBanner('warn', 'Central is offline. Edge inventory and dispensing stay available; database view is disabled.');
+  } else if (!edgeState.alive && centralState.alive) {
+    setBanner('warn', 'Edge is offline. Dispense falls back to central with branch override.');
+  } else {
+    setBanner('bad', 'Neither node is reachable right now. Check both VMs and network connectivity.');
+  }
+
+  await ensureEdgeSeededFromCentral();
+
+  if (forceReloadData || activeTab === 'dispense' || activeTab === 'inventory' || activeTab === 'database') {
+    await refreshActiveTab();
+  }
+}
+
+async function refreshActiveTab() {
+  if (activeTab === 'dispense') {
+    await Promise.all([loadInventoryForDispense(), loadRecentTransactions()]);
+  } else if (activeTab === 'inventory') {
+    await loadInventoryTable();
+  } else if (activeTab === 'database') {
+    if (centralState.alive) {
+      await Promise.all([loadDatabaseSelects(), loadDatabaseView(dbView)]);
+    } else {
+      document.getElementById('db-view').innerHTML = '<div class="empty">Central node is offline.</div>';
+    }
+  }
+}
+
+async function loadInventoryForDispense() {
+  const base = currentInventoryBase();
+  const select = document.getElementById('d-med');
+  select.innerHTML = '';
+  if (!base) {
+    select.innerHTML = '<option value="">No node available</option>';
+    return;
+  }
+  try {
+    const items = await fetchJson(base, '/api/inventory');
+    document.getElementById('inventory-source').textContent = 'Source: ' + (base === CENTRAL_API ? 'central' : 'edge');
+    if (!Array.isArray(items) || !items.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No medications available';
+      select.appendChild(opt);
+      return;
+    }
+    items.forEach((it) => {
+      const opt = document.createElement('option');
+      opt.value = it.medication_id;
+      opt.textContent = it.name + ' (' + it.medication_id + ')';
+      select.appendChild(opt);
+    });
+  } catch (err) {
+    select.innerHTML = '<option value="">Failed to load</option>';
+  }
+}
+
+async function loadInventoryTable() {
+  const box = document.getElementById('inventory-table');
+  box.innerHTML = '';
+
+  if (!edgeState.alive && !centralState.alive) {
+    box.innerHTML = '<div class="empty">No reachable node.</div>';
+    return;
+  }
+
+  const branchLabel = lastKnownEdgeBranch || BRANCH_ID || 'branch';
+
+  try {
+    // ── Branch stock (top table) ─────────────────────────────────────────────
+    // Prefer live edge; fall back to central filtered by branch when edge is down
+    let branchItems = null;
+    let branchSource = '';
+    if (edgeState.alive) {
+      branchItems = await fetchJson(EDGE_API, '/api/inventory');
+      branchSource = 'edge';
+    } else if (centralState.alive && lastKnownEdgeBranch) {
+      branchItems = await fetchJson(CENTRAL_API, '/api/inventory?branch=' + encodeURIComponent(lastKnownEdgeBranch));
+      branchSource = 'central (cached)';
+    }
+
+    if (branchItems) {
+      // When served from central, all 25 network medications come back; strip the ones
+      // the branch never stocked (balance=0) so only branch-relevant rows appear.
+      if (branchSource !== 'edge') {
+        branchItems = branchItems.filter(item => Number(item.balance ?? 0) > 0);
+      }
+
+      document.getElementById('inventory-source').textContent =
+        'Branch source: ' + branchSource + ' · Network source: central';
+
+      const h1 = document.createElement('div');
+      h1.className = 'footer-note';
+      h1.style.cssText = 'margin:0 0 .4rem; font-weight:600; color:var(--text-primary);';
+      h1.textContent = 'Branch stock (' + branchLabel + ')';
+      box.appendChild(h1);
+
+      box.appendChild(buildTable(branchItems, [
+        ['medication_id', 'Medication ID'],
+        ['name', 'Name'],
+        ['unit', 'Unit'],
+        ['min_stock', 'Min stock'],
+        ['balance', 'Branch balance'],
+        ['low_stock', 'Low stock'],
+      ]));
+    }
+
+    // ── Network total (bottom table) ─────────────────────────────────────────
+    // Always from central when available
+    if (centralState.alive) {
+      const centralItems = await fetchJson(CENTRAL_API, '/api/inventory');
+
+      const h2 = document.createElement('div');
+      h2.className = 'footer-note';
+      h2.style.cssText = 'margin:1.2rem 0 .4rem; font-weight:600; color:var(--text-primary);';
+      h2.textContent = 'Network total (all branches)';
+      box.appendChild(h2);
+
+      box.appendChild(buildTable(centralItems, [
+        ['medication_id', 'Medication ID'],
+        ['name', 'Name'],
+        ['unit', 'Unit'],
+        ['balance', 'Network balance'],
+      ]));
+
+      if (!branchItems) {
+        document.getElementById('inventory-source').textContent = 'Source: central (edge offline)';
+      }
+    }
+  } catch (err) {
+    box.innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
+  }
+}
+
+async function loadRecentTransactions() {
+  const box = document.getElementById('recent-tx');
+  const sources = [];
+  if (edgeState.alive) sources.push({ label: 'edge', base: EDGE_API });
+  if (centralState.alive) sources.push({ label: 'central', base: CENTRAL_API });
+  if (!sources.length) {
+    box.innerHTML = '<div class="empty">No node available.</div>';
+    return;
+  }
+  try {
+    const results = await Promise.all(sources.map((source) =>
+      fetchJson(source.base, '/api/transactions')
+        .then((items) => ({ source, items: Array.isArray(items) ? items : [] }))
+        .catch((err) => ({ source, err }))
+    ));
+    const failed = results.filter((result) => result.err);
+    if (failed.length === results.length) {
+      throw failed[0].err;
+    }
+
+    const byId = new Map();
+    results.forEach((result) => {
+      if (result.err) return;
+      result.items.forEach((tx) => {
+        const key = tx.tx_id || (result.source.label + '-' + byId.size);
+        if (byId.has(key)) {
+          const existing = byId.get(key);
+          if (!existing.source.includes(result.source.label)) {
+            existing.source += '+' + result.source.label;
+          }
+          return;
+        }
+        byId.set(key, { ...tx, source: result.source.label });
+      });
+    });
+    const txs = Array.from(byId.values()).sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+    const loadedSources = results.filter((result) => !result.err).map((result) => result.source.label).join(' + ');
+    document.getElementById('recent-source').textContent = failed.length ? ('Source: ' + loadedSources + ' (partial)') : ('Source: ' + loadedSources);
+    box.innerHTML = '';
+    box.appendChild(buildTable(txs, [
+      ['source', 'Source'],
+      ['tx_id', 'Tx ID'],
+      ['medication_id', 'Medication'],
+      ['type', 'Type'],
+      ['quantity', 'Qty'],
+      ['pharmacist_id', 'Pharmacist'],
+      ['branch_id', 'Branch'],
+      ['node_id', 'Node'],
+      ['timestamp', 'Time'],
+    ]));
+  } catch (err) {
+    box.innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
+  }
+}
+
+async function loadDatabaseSelects() {
+  try {
+    const meds = await fetchJson(CENTRAL_API, '/api/medications');
+    const sMed = document.getElementById('s-med');
+    const dMed = document.getElementById('d-med');
+    sMed.innerHTML = '';
+    dMed.innerHTML = '';
+    meds.forEach((m) => {
+      const o1 = document.createElement('option');
+      o1.value = m.medication_id;
+      o1.textContent = m.name + ' (' + m.medication_id + ')';
+      sMed.appendChild(o1);
+      const o2 = document.createElement('option');
+      o2.value = m.medication_id;
+      o2.textContent = m.name + ' (' + m.medication_id + ')';
+      dMed.appendChild(o2);
+    });
+  } catch (err) {
+    document.getElementById('db-view').innerHTML = '<div class="empty">Failed to load medications: ' + esc(err.message) + '</div>';
+  }
+}
+
+async function setDatabaseView(view, btn) {
+  dbView = view;
+  document.querySelectorAll('.inner-tab-btn').forEach((b) => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  await loadDatabaseView(view);
+}
+
+async function loadDatabaseView(view) {
+  const box = document.getElementById('db-view');
+  if (!centralState.alive) {
+    box.innerHTML = '<div class="empty">Central node is offline.</div>';
+    return;
+  }
+  try {
+    box.innerHTML = '<div class="empty">Loading…</div>';
+    if (view === 'medications') {
+      const meds = await fetchJson(CENTRAL_API, '/api/medications');
+      box.innerHTML = '';
+      box.appendChild(buildTable(meds, [
+        ['medication_id', 'Medication ID'],
+        ['name', 'Name'],
+        ['unit', 'Unit'],
+        ['min_stock', 'Min stock'],
+      ]));
+    } else if (view === 'patients') {
+      const patients = await fetchJson(CENTRAL_API, '/api/patients');
+      box.innerHTML = '';
+      box.appendChild(buildTable(patients, [
+        ['patient_id', 'Patient ID'],
+        ['name', 'Name'],
+        ['date_of_birth', 'DOB'],
+        ['contact', 'Contact'],
+        ['branch_id', 'Branch'],
+        ['last_updated', 'Updated'],
+      ]));
+    } else if (view === 'transactions') {
+      const txs = await fetchJson(CENTRAL_API, '/api/transactions');
+      box.innerHTML = '';
+      box.appendChild(buildTable(txs, [
+        ['tx_id', 'Tx ID'],
+        ['medication_id', 'Medication'],
+        ['patient_id', 'Patient'],
+        ['pharmacist_id', 'Pharmacist'],
+        ['quantity', 'Qty'],
+        ['branch_id', 'Branch'],
+        ['node_id', 'Node'],
+        ['timestamp', 'Time'],
+        ['status', 'Status'],
+      ]));
+    }
+  } catch (err) {
+    box.innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
+  }
+}
+
+function buildTable(items, cols) {
+  if (!Array.isArray(items) || !items.length) {
+    const d = document.createElement('div');
+    d.className = 'empty';
+    d.textContent = 'No records found.';
+    return d;
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'table-wrap';
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const tbody = document.createElement('tbody');
+  const headRow = document.createElement('tr');
+  cols.forEach((c) => {
+    const th = document.createElement('th');
+    th.textContent = c[1];
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+
+  items.forEach((item) => {
+    const tr = document.createElement('tr');
+    cols.forEach((c) => {
+      const td = document.createElement('td');
+      let v = item[c[0]];
+      if (typeof v === 'boolean') v = v ? 'Yes' : 'No';
+      if (v == null || v === '') v = '—';
+      td.textContent = String(v);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(thead);
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+async function submitDispense() {
+  const payload = currentDispensePayload();
+  if (!payload.medication_id || !payload.quantity || payload.quantity <= 0 || !payload.pharmacist_id) {
+    setBanner('bad', 'Fill in medication, quantity, and pharmacist ID.');
+    return;
+  }
+
+  let target = await chooseDispenseBase(payload);
+  if (!target) {
+    setBanner('bad', 'No node is available for dispensing.');
+    return;
+  }
+
+  if (target === CENTRAL_API && !payload.branch_override) {
+    setBanner('warn', 'Branch ID is required when dispensing through central fallback.');
+    return;
+  }
+
+  try {
+    const res = await fetchJson(target, '/api/dispense', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    setBanner('good', 'Dispense recorded. Tx: ' + (res.tx_id || '—'));
+    await refreshHealth(false);
+  } catch (err) {
+    if (target === EDGE_API && centralState.alive && err.status === 409 && String(err.message).includes('insufficient stock')) {
+      applyCentralBranchOverride(payload);
+      try {
+        const res = await fetchJson(CENTRAL_API, '/api/dispense', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        setBanner('good', 'Dispense recorded through central fallback. Tx: ' + (res.tx_id || '—'));
+        await refreshHealth(false);
+        return;
+      } catch (fallbackErr) {
+        setBanner('bad', fallbackErr.message || 'Dispense failed');
+        return;
+      }
+    }
+    setBanner('bad', err.message || 'Dispense failed');
+  }
+}
+
+async function addMedication() {
+  if (!centralState.alive) {
+    setBanner('warn', 'Central node is offline, so medication registration is disabled.');
+    return;
+  }
+  
+  const med = {
+    medication_id: document.getElementById('m-id').value.trim(), 
+    name: document.getElementById('m-name').value.trim(),
+    unit: document.getElementById('m-unit').value.trim() || 'tablet',
+    min_stock: parseInt(document.getElementById('m-min').value, 10) || 0,
+  };
+  
+  if (!med.medication_id || !med.name) {
+    setBanner('bad', 'Medication ID and name are required.');
+    return;
+  }
+  
+  try {
+    await fetchJson(CENTRAL_API, '/api/medications/register', { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(med),
+    });
+    if (edgeState.alive) {
+      try {
+        await fetchJson(EDGE_API, '/api/medications/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(med),
+        });
+        setBanner('good', 'Medication saved on central and edge.');
+      } catch (edgeErr) {
+        setBanner('warn', 'Medication saved on central, but edge was not updated: ' + edgeErr.message);
+      }
+    } else {
+      setBanner('good', 'Medication saved on central. Edge will need replication before it can dispense it offline.');
+    }
+    await refreshHealth(true);
+  } catch (err) {
+    setBanner('bad', err.message || 'Failed to save medication');
+  }
+}
+
+async function addStock() {
+  if (!centralState.alive) {
+    setBanner('warn', 'Central node is offline, so stock updates are disabled.');
+    return;
+  }
+  const payload = {
+    medication_id: document.getElementById('s-med').value.trim(),
+    quantity: parseInt(document.getElementById('s-qty').value, 10),
+    added_by: document.getElementById('s-by').value.trim(),
+    transaction_id: newClientID('stock-tx'),
+    ledger_entry_id: newClientID('stock-ledger'),
+    recorded_at: sqlNowUTC(),
+    node_id: 'central',
+  };
+  if (!payload.medication_id || !payload.quantity || payload.quantity <= 0) {
+    setBanner('bad', 'Choose a medication and enter a quantity greater than zero.');
+    return;
+  }
+  try {
+    await fetchJson(CENTRAL_API, '/api/stock/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (edgeState.alive) {
+      try {
+        await fetchJson(EDGE_API, '/api/stock/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        setBanner('good', 'Stock added on central and edge.');
+      } catch (edgeErr) {
+        setBanner('warn', 'Stock added on central, but edge was not updated: ' + edgeErr.message);
+      }
+    } else {
+      setBanner('good', 'Stock added on central. Edge will need replication before offline dispensing.');
+    }
+    await refreshHealth(true);
+  } catch (err) {
+    setBanner('bad', err.message || 'Failed to add stock');
+  }
+}
+
+async function savePatient() {
+  if (!centralState.alive) {
+    setBanner('warn', 'Central node is offline, so patient management is disabled.');
+    return;
+  }
+  const payload = {
+    id: document.getElementById('p-id').value.trim(), 
+    name: document.getElementById('p-name').value.trim(),
+    date_of_birth: document.getElementById('p-dob').value,
+    contact: document.getElementById('p-contact').value.trim(),
+    branch_id: document.getElementById('p-branch').value.trim() || BRANCH_ID,
+  };
+  if (!payload.id || !payload.name) {
+    setBanner('bad', 'Patient ID and name are required.');
+    return;
+  }
+  try {
+    await fetchJson(CENTRAL_API, '/api/patients/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    setBanner('good', 'Patient saved.');
+    await refreshHealth(true);
+  } catch (err) {
+    setBanner('bad', err.message || 'Failed to save patient');
+  }
+}
+
+function init() {
+  document.getElementById('edge-api').value = EDGE_API;
+  document.getElementById('central-api').value = CENTRAL_API;
+  document.getElementById('branch-id').value = BRANCH_ID;
+  document.getElementById('auth-token').value = AUTH_TOKEN;
+  refreshHealth(true);
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => refreshHealth(true), 15000);
+}
+
+// Ensure the application does not start polling until a sign-in is complete
+// init() is now intentionally left out here at the bottom, so it only fires from the signIn() function
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+node:
+  id: central-1
+  role: central
+  branch: ""
+
+server:
+  port: 9090
+
+database:
+  path: "./central.db"
+
+auth:
+  token: "dev-pharmacist-token"

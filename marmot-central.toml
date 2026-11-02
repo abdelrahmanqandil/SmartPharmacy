@@ -1,0 +1,20 @@
+node_id = 1
+
+data_dir = "./marmot-data"
+
+[storage]
+type = "sqlite"
+path = "./central.db"
+busy_timeout = 5000
+
+[transport]
+type = "nats"
+address = "nats://127.0.0.1:4222"
+
+[replication]
+mode = "multi-master"
+delta_sync_threshold_transactions = 1
+
+[cluster]
+grpc_port = 8080
+grpc_advertise_address = "127.0.0.1:8080"

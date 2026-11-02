@@ -1,0 +1,31 @@
+# Binaries
+marmot
+nats-server
+*.exe
+
+# Runtime databases and WAL files
+*.db
+*.db-wal
+*.db-shm
+
+# Marmot state directories
+marmot-data/
+marmot-data-edge/
+
+# Runtime logs and PID files
+*.log
+*.pid
+
+# Archives
+*.tar.gz
+*.zip
+
+# Build output
+/app
+
+# Go build cache
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db
